@@ -11,6 +11,7 @@ class Game:
         'count','beats','keywords',   
         'attack1','attack2',  
         'defense1','defense2', 
+        'skills',
         'action',   # 其他动作,为日后其他版本迭代做准备
     )   
     class Menu: # 内部类菜单系统，负责所有用户交互
@@ -113,8 +114,8 @@ class Game:
             self.game = game
             self.hp1 = 100  # player
             self.hp2 = 100  # pc
-            self._energy_player = 0  # 玩家能量 
-            self._energy_pc = 0      # PC能量（FG2.0时移除）
+            self._energy_player = 20  # 玩家能量 
+            self._energy_pc = 0       # PC能量（FG2.0时移除）
             self.defense_level = None # 防御等级
             self.energy_player_top = 100    # 能量上限
             self.energy_pc_top = 50  # PC能量上限较低，为移除做铺垫
@@ -136,11 +137,27 @@ class Game:
             top = getattr(self,attr_top)
             new_val = max(0,min(value,top))
             setattr(self, attr, new_val)
-
-        def energy_do(self, is_player: bool, delta: int):   # 战斗中使用能量
-            current = self.energy_get(is_player)
-            new_val = self.energy_set(is_player, current + delta)
             return new_val
+
+        def energy_do(self, is_player: bool ,reason: int | str):   # 战斗中能量的获取
+           # 结果标识映射表
+            REASON = {  
+                'round': 1,         # 每回合开始
+                'combat_win': 3,    # 战斗胜利
+                'combat_draw': 1,   # 平局
+                'defense_turn': 2,  # 防御回合
+                # 'take_damage': 1,   # 受伤补偿
+            }
+
+            # 实际表更量
+            delta = (   
+                reason
+                if isinstance(reason, int) 
+                else REASON.get(reason, 0)
+            )   
+
+            # 应用变更并返回新值
+            return self.energy_set(is_player, self.energy_get(is_player) + delta)
 
     def __init__(self): # 大类Game中变量的声明
         self.attack1 = {
@@ -158,6 +175,28 @@ class Game:
         }
         self.defense2 = {
             "进阶防御": lambda: print("吐纳间蕴含天地之力,似乎没有事物可以伤害自身一毫了。")
+        }
+        self.skills = { # [category][level][skill_name][``]
+            "attack": {
+                "lv1": {
+                    "基础拳": {"cost": 0, "damage": 10, "effect": lambda: print("挥出一拳，拳风袭面门。")},
+                    "基础剑": {"cost": 0, "damage": 10, "effect": lambda: print("刺出一剑，刺向薄弱处。")},
+                    "基础刀": {"cost": 0, "damage": 10, "effect": lambda: print("砍出一刀，劈向脑门。")},
+                },
+                "lv2": {
+                    "进阶拳": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("负手而立，倏然挥出一拳，气动如龙！")},
+                    "进阶剑": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("躬身、出剑，此世间绝无这么快的剑！")},
+                    "进阶刀": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("高高跃起，蓄力下劈。此刀势无可披靡！")},
+                },
+            },
+            "defense": {
+                "lv1": {
+                    "基础防御": {"cost": 0, "effect": lambda: print("气沉丹田,运转自身内力。")},
+                },
+                "lv2": {
+                    "进阶防御": {"cost": 5, "effect": lambda: print("吐纳间蕴含天地之力,似乎没有事物可以伤害自身一毫了。")},
+                },
+            },
         }
         self.beats = {"拳": "剑", "剑": "刀", "刀": "拳"}
         self.keywords ={"拳","剑","刀"} #
@@ -182,107 +221,95 @@ class Game:
 
     def get_skill_cost(self, skill_name: str) -> int:   # 查询招式消耗
     
-        return 5 if skill_name in self.attack2 else 0
-    
-    # def _get_context(self) -> str:   # 判断是否是玩家
-    #     # 通过调用栈分析（简单实现），后续版本由Resolver传入
-    #     import inspect
-    #     caller = inspect.currentframe().f_back.f_code.co_name
-    #     return "玩家" if "menu" in caller else "PC"
-    
+        if skill_name in self.attack2 or skill_name in self.defense2:
+          return 5
+        return 0
+
     def get_skill_type(self, skill_name: str) -> str:   # 查询招式类型
         return "lv2" if skill_name in self.attack2 or self.defense2 else "lv1"
 
-    def judge(self, player: str, pc: str):  # 判断
-
-        # 接受完整技能名并解析关键字
-        player = self.react(player)
-        pc = self.react(pc)
-
-        # 判断克制关系
-        player_countered = self.beats[player] == pc
-        pc_countered = self.beats[pc] == player
-        
-        # 是否使用进阶招式
-        player_lv2 = self.attribute.energy_get(True) >= 5
-        pc_lv2 = self.attribute.energy_get(False) >= 5
-
-        # 计算伤害
-        damage_to_pc = self.calculate_damage(player_lv2, None, player_countered)
-        damage_to_player = self.calculate_damage(pc_lv2, self.attribute.defense_level, pc_countered)
-        
-        # 应用伤害
-        self.apply_damage(damage_to_pc, damage_to_player)
-        
-        # 更新分数
-        if player == pc:
-            self.attribute.energy_do(True, 1)   # 玩家+1
-            self.attribute.energy_do(False, 1)  # PC+1
-            result =  "旗鼓相当，不分胜负！"
-        elif self.beats[player] == pc:
-            self.attribute.energy_do(True, 2)
-            result =  "你更胜一筹，占得先机！"
-        else:
-            self.attribute.energy_do(False, 2)
-            result = "对方招式克制，你落得下风！"
-       
-        # 受击判断
-        defense_names = {'lv1': '基础防御', 'lv2': '进阶防御'}
-        defense_info = f" [你使用了{defense_names.get(self.attribute.defense_level, '')}]" if self.attribute.defense_level else "" 
-        return f"{result}{defense_info} (你受到{damage_to_player}点伤害，对方受到{damage_to_pc}点伤害)"
+    def get_skill(self, value: str =None, key: str =None) -> dict | list:   # 多层嵌套字典树的遍历查询技能
+        """多层嵌套字典灵活查询（支持任意层级键）
     
-    def fight(self, player_skill: str): # 回合制战斗
-        # 明确区分防御和攻击路径
-        # is_defense_turn = self.attribute.defense_level is not None
-        player = self.react(player_skill)
+        Args:
+            value: 技能名称（最深层键）
+            key: 任意层级的父键
         
-        # 玩家防御
-        if self.attribute.defense_level:
-            def_dict = self.defense2 if self.attribute.defense_level == 'lv2' else self.defense1
-            def_name = "进阶防御" if self.attribute.defense_level == 'lv2' else "基础防御"
-            print("你", end="")
-            def_dict[def_name]()  # 修复：使用正确的键名
-            sleep(1.5)
-            player_skill = None  # 执行防御后不攻击
+        Returns:
+            dict: 精确查询返回字典数据
+            list: 查询分类/等级返回技能名列表
+        """
 
-        # 玩家攻击（防御回合跳过）
-        if player_skill:
-            print("你", end="")
-            attack_dict = self.attack2 if "进阶" in player_skill else self.attack1
-            attack_dict[player_skill]()
-            sleep(1.5)
-        # 电脑
-        pc = random.choice(list(self.keywords))
-        pc_lv2 = self.attribute.energy_get(False) >= 5
-        pc_skill = self.action_by_key(pc, self.attribute._energy_pc >= 5)
-        print("对方", end="")
-        (self.attack2 if self.attribute.energy_get(False) >= 5 else self.attack1)[pc_skill]()
-        sleep(1.5)
+        # 场景3优先,否则死锁：key + value 联合查询
+        if key and value:   
+            # 深度优先搜索，找到第一个匹配key的节点
+            key_node = self._find_node(self.skills, key)
+            if not key_node:
+                raise KeyError(f"键 '{key}' 未找到")
+            
+            # 在key的子树中搜索value
+            result = self._find_node(key_node, value, return_parent=False)
+            if not result:
+                raise KeyError(f"在键 '{key}' 下未找到技能 '{value}'")
+            return result
 
-        # 判定并显示伤害（修复：防御回合不调用judge）
-        if self.attribute.defense_level:
-            # 防御回合，单独处理伤害计算
-            pc_lv2 = self.attribute.energy_get(False) >= 5
-            damage_to_player = self.calculate_damage(pc_lv2, self.attribute.defense_level, False)
-            self.attribute.hp1 -= damage_to_player
-            if self.attribute.hp1 < 0:
-                self.attribute.hp1 = 0
-            defense_names = {'lv1': 'lv1防御', 'lv2': 'lv2防御'}
-            defense_info = f" [你使用了{defense_names.get(self.attribute.defense_level, '')}]" if self.attribute.defense_level else ""
-            say(f"你全力防御{defense_info}，受到{damage_to_player}点伤害")
-        else:
-            # 正常攻击回合
-            print(self.judge(player, pc))
+        # 场景1：仅value（全库搜索）
+        if value:
+            result = self._find_node(self.skills, value, return_parent=False)
+            if not result:
+                raise KeyError(f"技能 '{value}' 未定义")
+            return result
+        # 场景2：仅key（返回该键下的所有技能名）
+        if key:
+            key_node = self._find_node(self.skills, key)
+            if not key_node:
+                raise KeyError(f"键 '{key}' 未找到")
+            
+            # 如果找到的是技能字典（第三层），直接返回
+            if "cost" in key_node:
+                return key_node
+            
+            # 如果找到的是分类或等级字典，收集其下所有技能名
+            return key_node  
 
-        sleep(2)
-        print("-" * 30)
-        return True
+        # 边界：返回全库所有技能名
+        return self._collect_skill_names(self.skills)
+    
+    def _find_node(self, node: dict, target: str, return_parent: bool = True) -> dict | None:   # 深度优先搜索（DFS），可返回父节点或值
+        """辅助：在嵌套字典中搜索键，可返回父节点或值"""
+        if not isinstance(node, dict):
+            return None
+        
+        if target in node:
+            return node if return_parent else node[target]
+        
+        for child in node.values():
+            if isinstance(child, dict):
+                result = self._find_node(child, target, return_parent)
+                if result:
+                    return result
+        return None
+
+    def _collect_skill_names(self, node: dict) -> list: # 收集嵌套字典中所有技能名（第三层键）
+        """辅助：收集嵌套字典中所有技能名（第三层键）"""
+        names = []
+        if not isinstance(node, dict):
+            return names
+        
+        # 检查当前层级的值是否为技能字典（有cost字段）
+        for name, data in node.items():
+            if isinstance(data, dict) and "cost" in data:
+                names.append(name)
+            elif isinstance(data, dict):
+                names.extend(self._collect_skill_names(data))
+        
+        return names
 
     def calculate_damage(   # 伤害计算
             self, skill_attack ,lv_defense ,is_countered
     ):
         # 判断是否为进阶攻击
-        is_lv2_attack = skill_attack in self.attack2
+        is_lv2_attack = skill_attack in self.attack2 if skill_attack else False
 
         # 基础伤害
         base_damage = 25 if is_lv2_attack else 10
@@ -313,6 +340,96 @@ class Game:
     def is_alive(self, is_player):  # 胜负判定 同时为0判玩家为失败
         return self.attribute.hp1 > 0 if is_player else self.attribute.hp2 > 0
 
+    def judge(self, player: str, pc: str):  # 判断
+
+        # 接受完整技能名并解析关键字
+        player = self.react(player)
+        pc = self.react(pc)
+
+        # 判断克制关系
+        player_countered = self.beats[player] == pc
+        pc_countered = self.beats[pc] == player
+        
+        # 是否使用进阶招式
+        player_lv2 = self.attribute.energy_get(True) >= 5
+        pc_lv2 = self.attribute.energy_get(False) >= 5
+
+        # 计算伤害
+        damage_to_pc = self.calculate_damage(player_lv2, None, player_countered)
+        damage_to_player = self.calculate_damage(pc_lv2, self.attribute.defense_level, pc_countered)
+        
+        # 应用伤害
+        self.apply_damage(damage_to_pc, damage_to_player)
+        
+        # 更新分数
+        if player == pc:
+            self.attribute.energy_do(True, 'combat_draw')   # 玩家+1
+            self.attribute.energy_do(False, 'combat_draw')  # PC+1
+            result =  "旗鼓相当，不分胜负！"
+        elif self.beats[player] == pc:
+            self.attribute.energy_do(True, 'combat_win')
+            result =  "你更胜一筹，占得先机！"
+        else:
+            self.attribute.energy_do(False, 'combat_win')
+            result = "对方招式克制，你落得下风！"
+       
+        # 受击判断
+        defense_names = {'lv1': '基础防御', 'lv2': '进阶防御'}
+        defense_info = f" [你使用了{defense_names.get(self.attribute.defense_level, '')}]" if self.attribute.defense_level else "" 
+        return f"{result}{defense_info} (你受到{damage_to_player}点伤害，对方受到{damage_to_pc}点伤害)"
+    
+    def fight(self, player_skill: str): # 回合制战斗
+        # 明确区分防御和攻击路径
+        # is_defense_turn = self.attribute.defense_level is not None
+        player = self.react(player_skill)
+        self.attribute.energy_do(True, 'round')
+        self.attribute.energy_do(False, 'round')
+
+        # 玩家防御
+        if self.attribute.defense_level:
+            def_dict = self.defense2 if self.attribute.defense_level == 'lv2' else self.defense1
+            def_name = "进阶防御" if self.attribute.defense_level == 'lv2' else "基础防御"
+            print("你", end="")
+            def_dict[def_name]()  # 修复：使用正确的键名
+            sleep(1.5)
+            player_skill = None  # 执行防御后不攻击
+            #防御回合获得基础能量
+            self.attribute.energy_do(True, 'defense_turn')  
+
+        # 玩家攻击（防御回合跳过）
+        if player_skill:
+            print("你", end="")
+            attack_dict = self.attack2 if "进阶" in player_skill else self.attack1
+            attack_dict[player_skill]()
+            sleep(1.5) 
+
+        # 电脑
+        pc = random.choice(list(self.keywords))
+        pc_lv2 = self.attribute.energy_get(False) >= 5
+        pc_skill = self.action_by_key(pc, self.attribute._energy_pc >= 5)
+        print("对方", end="")
+        (self.attack2 if self.attribute.energy_get(False) >= 5 else self.attack1)[pc_skill]()
+        sleep(1.5)
+
+        # 判定并显示伤害（修复：防御回合不调用judge）
+        if self.attribute.defense_level:
+            # 防御回合，单独处理伤害计算
+            pc_lv2 = self.attribute.energy_get(False) >= 5
+            damage_to_player = self.calculate_damage(pc_lv2, self.attribute.defense_level, False)
+            self.attribute.hp1 -= damage_to_player
+            if self.attribute.hp1 < 0:
+                self.attribute.hp1 = 0
+            defense_names = {'lv1': 'lv1防御', 'lv2': 'lv2防御'}
+            defense_info = f" [你使用了{defense_names.get(self.attribute.defense_level, '')}]" if self.attribute.defense_level else ""
+            say(f"你全力防御{defense_info}，受到{damage_to_player}点伤害")
+        else:
+            # 正常攻击回合
+            print(self.judge(player, pc))
+
+        sleep(2)
+        print("-" * 30)
+        return True
+
     def main(self): # 主循环
         while 1:
             # 回合开始时检查胜负
@@ -327,7 +444,7 @@ class Game:
 
             self.count +=1
             print(f"第{self.count}回合")
-            self.attribute.defense_level = None # 重置防御等级
+            # self.attribute.defense_level = None # 重置防御等级
 
             if self.attribute.hp2 > 50:
                 say("对方覆手而立，侧视而笑：'阁下出招吧，拳、剑、刀皆可，若有疑惑我自可欣然解答。若是不愿再战，逃走即可！'\n")
