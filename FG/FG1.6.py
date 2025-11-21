@@ -37,14 +37,13 @@ class Game:
             return input(">>> ").strip().lower()
 
         def menu_attack(self):  # 攻击菜单
-            print("\n选择你的攻击招式")
             options = {
                 "a": ("基础拳", True),
                 "b": ("基础剑", True),
                 "c": ("基础刀", True),
-                "d": ("进阶拳", self.game.attribute.energy_player >= 5),
-                "e": ("进阶剑", self.game.attribute.energy_player >= 5),
-                "f": ("进阶刀", self.game.attribute.energy_player >= 5),
+                "d": ("进阶拳", self.game.attribute.energy_get(True) >= 5),
+                "e": ("进阶剑", self.game.attribute.energy_get(True) >= 5),
+                "f": ("进阶刀", self.game.attribute.energy_get(True) >= 5),
                 "z": (None, True)  # 返回上级
             }
             #显示菜单
@@ -68,17 +67,16 @@ class Game:
             
             # 查询消耗
             cost = self.game.get_skill_cost(name)
-            if self.game.attribute.energy_player < cost:
+            if self.game.attribute.energy_get(True) < cost:
                 say(f"能量不足{cost}点，无法施展此招！")
                 return self.menu_attack()
             # 分支4：唯一返回
             return name
 
         def menu_defense(self): # 防御菜单
-            print("\n选择你的防御招式")
             options = {
                 "a": ("基础防御", True),
-                "b": ("进阶防御", self.game.attribute.energy_player >= 5),
+                "b": ("进阶防御", self.game.attribute.energy_get(True) >= 5),
                 "z": (None, True)  # 返回上级
             }
 
@@ -103,7 +101,7 @@ class Game:
             
             # 查询消耗
             cost = self.game.get_skill_cost(name)
-            if self.game.attribute.energy_player < cost:
+            if self.game.attribute.energy_get(True) < cost:
                 say(f"能量不足{cost}点，无法施展此招！")
                 return self.menu_defense()
             # 分支4：唯一返回
@@ -115,34 +113,50 @@ class Game:
             self.game = game
             self.hp1 = 100  # player
             self.hp2 = 100  # pc
-            self.energy_player = 0  # player能量
-            self.energy_pc = 0  # pc能量，目前存在为了保持兼容，后续版本将移除
+            self._energy_player = 20  # 玩家能量 
+            self._energy_pc = 0       # PC能量（FG2.0时移除）
             self.defense_level = None # 防御等级
             self.energy_player_top = 100    # 能量上限
             self.energy_pc_top = 50  # PC能量上限较低，为移除做铺垫
 
         def attribute_desc(self): # 状态描述
-            # print(f"{'='*35}")
-            # print(f"  玩家血量: {self.hp1}/100  |  能量: {self.game.attribute_energy_player}")
-            # print(f"  对手血量: {self.hp2}/100  |  能量: {self.game.attribute_energy_pc}")
-            # print(f"{'='*35}")
-            #           
-            print(f"{'='*40}")
-            print(f"  ❤️  玩家血量: {self.hp1:>3}/100  |  ⚔️  能量: {self.game.attribute.energy_player:>2}")
-            print(f"  💀 对手血量: {self.hp2:>3}/100  |  🛡️  能量: {self.game.attribute.energy_pc:>2}")
+            
+            player_energy = self.energy_get(True)
+            pc_energy = self.energy_get(False)
+            print(f"  ❤️  玩家血量: {self.hp1:>3}/100  |  ⚔️  能量: {player_energy:>2}/{self.energy_player_top}")
+            print(f"  💀 对手血量: {self.hp2:>3}/100  |  🛡️  能量: {pc_energy:>2}/{self.energy_pc_top}")
             print(f"{'='*40}")
 
-        def energy_do(self, is_player: bool, delta: int):   # 能量使用
-            attr = 'energy_player' if is_player else 'energy_pc'
-            cap_attr = 'energy_cap_player' if is_player else 'energy_cap_pc'
-            current = getattr(self, attr)
-            cap = getattr(self, cap_attr)
-            new_val = max(0, min(current + delta, cap))
+        def energy_get(self, is_player:bool) -> int: # 能量的调用
+            return self._energy_player if is_player else self._energy_pc
+
+        def energy_set(self, is_player:bool, value): # 能量的设置
+            attr = '_energy_player' if is_player else '_energy_pc'
+            attr_top = 'energy_player_top' if is_player else 'energy_pc_top'
+            top = getattr(self,attr_top)
+            new_val = max(0,min(value,top))
             setattr(self, attr, new_val)
             return new_val
-        
-        def energy_get(self,is_player:bool) -> int: # 能量获取
-            return self.energy_player if is_player else self.energy_pc
+
+        def energy_do(self, is_player: bool ,reason: int | str):   # 战斗中能量的获取
+           # 结果标识映射表
+            REASON = {  
+                'round': 1,         # 每回合开始
+                'combat_win': 3,    # 战斗胜利
+                'combat_draw': 1,   # 平局
+                'defense_turn': 2,  # 防御回合
+                # 'take_damage': 1,   # 受伤补偿
+            }
+
+            # 实际表更量
+            delta = (   
+                reason
+                if isinstance(reason, int) 
+                else REASON.get(reason, 0)
+            )   
+
+            # 应用变更并返回新值
+            return self.energy_set(is_player, self.energy_get(is_player) + delta)
 
     def __init__(self): # 大类Game中变量的声明
         self.attack1 = {
@@ -183,19 +197,15 @@ class Game:
             return None
 
     def get_skill_cost(self, skill_name: str) -> int:   # 查询招式消耗
-        
+    
         if skill_name in self.attack2 or skill_name in self.defense2:
-            return 5 if "玩家" in self._get_context() else 0  # PC免费  # 进阶招式消耗5点
-        elif skill_name in self.attack1 or skill_name in self.defense1:
-            return 0  # 基础招式不消耗
-    
-        return 0  # 默认不消耗
-    
-    def _get_context(self) -> str:   # 判断是否是玩家
-        # 通过调用栈分析（简单实现），后续版本由Resolver传入
-        import inspect
-        caller = inspect.currentframe().f_back.f_code.co_name
-        return "玩家" if "menu" in caller else "PC"
+          return 5
+        return 0
+    # def _get_context(self) -> str:   # 判断是否是玩家
+    #     # 通过调用栈分析（简单实现），后续版本由Resolver传入
+    #     import inspect
+    #     caller = inspect.currentframe().f_back.f_code.co_name
+    #     return "玩家" if "menu" in caller else "PC"
     
     def get_skill_type(self, skill_name: str) -> str:   # 查询招式类型
         return "lv2" if skill_name in self.attack2 or self.defense2 else "lv1"
@@ -205,14 +215,15 @@ class Game:
         # 接受完整技能名并解析关键字
         player = self.react(player)
         pc = self.react(pc)
+
         # 判断克制关系
         player_countered = self.beats[player] == pc
         pc_countered = self.beats[pc] == player
         
         # 是否使用进阶招式
-        player_lv2 = self.attribute.energy_player >= 5
-        pc_lv2 = self.attribute.energy_pc >= 5
-        
+        player_lv2 = self.attribute.energy_get(True) >= 5
+        pc_lv2 = self.attribute.energy_get(False) >= 5
+
         # 计算伤害
         damage_to_pc = self.calculate_damage(player_lv2, None, player_countered)
         damage_to_player = self.calculate_damage(pc_lv2, self.attribute.defense_level, pc_countered)
@@ -222,14 +233,14 @@ class Game:
         
         # 更新分数
         if player == pc:
-            self.attribute.energy_player += 1
-            self.attribute.energy_pc += 1
+            self.attribute.energy_do(True, 'combat_draw')   # 玩家+1
+            self.attribute.energy_do(False, 'combat_draw')  # PC+1
             result =  "旗鼓相当，不分胜负！"
         elif self.beats[player] == pc:
-            self.attribute.energy_player += 2
+            self.attribute.energy_do(True, 'combat_win')
             result =  "你更胜一筹，占得先机！"
         else:
-            self.attribute.energy_pc += 2
+            self.attribute.energy_do(False, 'combat_win')
             result = "对方招式克制，你落得下风！"
        
         # 受击判断
@@ -239,9 +250,11 @@ class Game:
     
     def fight(self, player_skill: str): # 回合制战斗
         # 明确区分防御和攻击路径
-        is_defense_turn = self.attribute.defense_level is not None
+        # is_defense_turn = self.attribute.defense_level is not None
         player = self.react(player_skill)
-        
+        self.attribute.energy_do(True, 'round')
+        self.attribute.energy_do(False, 'round')
+
         # 玩家防御
         if self.attribute.defense_level:
             def_dict = self.defense2 if self.attribute.defense_level == 'lv2' else self.defense1
@@ -250,24 +263,28 @@ class Game:
             def_dict[def_name]()  # 修复：使用正确的键名
             sleep(1.5)
             player_skill = None  # 执行防御后不攻击
+            #防御回合获得基础能量
+            self.attribute.energy_do(True, 'defense_turn')  
 
         # 玩家攻击（防御回合跳过）
         if player_skill:
             print("你", end="")
             attack_dict = self.attack2 if "进阶" in player_skill else self.attack1
             attack_dict[player_skill]()
-            sleep(1.5)
+            sleep(1.5) 
+
         # 电脑
         pc = random.choice(list(self.keywords))
-        pc_skill = self.action_by_key(pc, self.attribute.energy_pc >= 5)
+        pc_lv2 = self.attribute.energy_get(False) >= 5
+        pc_skill = self.action_by_key(pc, self.attribute._energy_pc >= 5)
         print("对方", end="")
-        (self.attack2 if self.attribute.energy_pc >= 5 else self.attack1)[pc_skill]()
+        (self.attack2 if self.attribute.energy_get(False) >= 5 else self.attack1)[pc_skill]()
         sleep(1.5)
 
         # 判定并显示伤害（修复：防御回合不调用judge）
         if self.attribute.defense_level:
             # 防御回合，单独处理伤害计算
-            pc_lv2 = self.attribute.energy_pc >= 5
+            pc_lv2 = self.attribute.energy_get(False) >= 5
             damage_to_player = self.calculate_damage(pc_lv2, self.attribute.defense_level, False)
             self.attribute.hp1 -= damage_to_player
             if self.attribute.hp1 < 0:
@@ -287,7 +304,7 @@ class Game:
             self, skill_attack ,lv_defense ,is_countered
     ):
         # 判断是否为进阶攻击
-        is_lv2_attack = skill_attack in self.attack2
+        is_lv2_attack = skill_attack in self.attack2 if skill_attack else False
 
         # 基础伤害
         base_damage = 25 if is_lv2_attack else 10
@@ -332,7 +349,7 @@ class Game:
 
             self.count +=1
             print(f"第{self.count}回合")
-            self.attribute.defense_level = None # 重置防御等级
+            # self.attribute.defense_level = None # 重置防御等级
 
             if self.attribute.hp2 > 50:
                 say("对方覆手而立，侧视而笑：'阁下出招吧，拳、剑、刀皆可，若有疑惑我自可欣然解答。若是不愿再战，逃走即可！'\n")
@@ -352,14 +369,14 @@ class Game:
                 skill = self.menu.menu_attack()
                 if skill:
                     cost = self.get_skill_cost(skill)  # 动态查询
-                    self.attribute.energy_player -= cost  # 自动扣除
+                    self.attribute.energy_do(True,-cost)  # 自动扣除
                     self.fight(skill)
                 continue
             if action == 'b':
                 defense_level = self.menu.menu_defense()
                 if defense_level:
                     cost = self.get_skill_cost("进阶防御" if defense_level == 'lv2' else "基础防御")
-                    self.attribute.energy_player -= cost
+                    self.attribute.energy_do(True,-cost)
                     self.attribute.defense_level = defense_level
                     self.fight("")  # 防御回合
 
