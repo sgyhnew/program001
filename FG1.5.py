@@ -12,13 +12,24 @@ class Game:
         'score1','score2',   
         'attack1','attack2',  
         'defense1','defense2', 
-        'action',   # 其他动作
+        'action',   # 其他动作,为日后其他版本迭代做准备
     )   
     class Menu: # 内部类菜单系统，负责所有用户交互
         def __init__(self,game):
             self.game = game    # 外部调用
+        
+        # 增加菜单选择的服用方法，减少在攻击菜单和防御菜单的重复
+        def _render_menu(self, options: dict, title: str):
+            print(f"\n{title}")
+            for key, (name, unlocked) in options.items():
+                if key == 'z':
+                    print(f"[{key}] 返回上级")
+                else:
+                    status = '' if unlocked else '(未解锁)'
+                    print(f" [{key}] {name} {status}")
+            return input(">>> ").strip().lower()
 
-        def menu_main(self):    #主菜单
+        def menu_main(self):    # 主菜单
             print("\n【回合开始】你略加思索,决定:")
             print("  [a] 攻击")
             print("  [b] 防御")
@@ -38,14 +49,8 @@ class Game:
                 "z": (None, True)  # 返回上级
             }
             #显示菜单
-            for key,(name,unlocked) in options.items(): 
-                if key == 'z':  # 返回
-                    print(f"[{key}]返回上级")
-                elif isinstance(name,str):
-                    status = '' if unlocked else '(未解锁)'
-                    print(f" [{key}] {name} {status}")
-            choice = input(">>> ").strip().lower()
-
+            choice = self._render_menu(options,"选择你的攻击招式")
+            
             #处理选项
             # 分支1：返回上级
             if choice == 'z':
@@ -79,13 +84,7 @@ class Game:
             }
 
             #显示菜单
-            for key,(name,unlocked) in options.items(): 
-                if key == 'z':  # 返回
-                    print(f"[{key}]返回上级")
-                elif isinstance(name,str):
-                    status = '' if unlocked else '(未解锁)'
-                    print(f" [{key}] {name} {status}")
-            choice = input(">>> ").strip().lower()
+            choice = self._render_menu(options,"选择你的防御方式")
 
             #处理选项
             # 分支1：返回上级
@@ -205,7 +204,7 @@ class Game:
             self.score1 += 1
             self.score2 += 1
             result =  "旗鼓相当，不分胜负！"
-        if self.beats[player] == pc:
+        elif self.beats[player] == pc:
             self.score1 += 2
             result =  "你更胜一筹，占得先机！"
         else:
@@ -218,7 +217,7 @@ class Game:
         return f"{result}{defense_info} (你受到{damage_to_player}点伤害，对方受到{damage_to_pc}点伤害)"
     
     def fight(self, player_skill: str): # 回合制战斗
-        # 1.5修复：明确区分防御和攻击路径
+        # 明确区分防御和攻击路径
         is_defense_turn = self.attribute.defense_level is not None
         player = self.react(player_skill)
         
@@ -230,11 +229,6 @@ class Game:
             def_dict[def_name]()  # 修复：使用正确的键名
             sleep(1.5)
             player_skill = None  # 执行防御后不攻击
-
-        # 防御回合也要继续，不能return False
-        # if player is None:
-        #     print("此招式你尚未习得，思虑再三决定重新出招")
-        #     return False
 
         # 玩家攻击（防御回合跳过）
         if player_skill:
@@ -267,12 +261,6 @@ class Game:
         sleep(2)
         print("-" * 30)
         return True
-
-    # def calculate_damage(   # 伤害计算
-    #         self, is_lv2, is_countered
-    #         ):
-    #     base_damage = 25 if is_lv2 else 10
-    #     return base_damage * 2 if is_countered else base_damage
 
     def calculate_damage(   # 伤害计算
             self, skill_attack ,lv_defense ,is_countered
