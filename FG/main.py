@@ -7,59 +7,84 @@ from func import say, load_json, bind_effects
 import random
 from time import sleep
 import json
-from typing import Dict, Any
+from functools import lru_cache
+from typing import Dict, Any, Callable, Iterator, Tuple
+from dataclasses import dataclass
 from system.menu import Menu
 from system.attribute import Attribute
 
+@dataclass(frozen=True)  # frozen让对象不可变，可被缓存
+class SkillData:    # 技能数据结构
+    name: str
+    category: str      # 类别
+    level: str         # 等级
+    cost: int          # 消耗
+    effect: Callable[[], None]  # 效果，暂时为输出文本，后期可扩展为其他函数
+
+    damage: int = 0    # 伤害
+    cooldown: int = 0  # 冷却
+
+    def __post_init__(self):     # 数据完整性检查，只警告不报错
+        if self.category == "attack" and self.damage == 0:
+            print(f"警告: 攻击技能 '{self.name}' 缺少伤害值")
+        if self.effect is None:
+            print(f"警告: 技能 '{self.name}' 缺少effect函数")
 
 class Game:
     __slots__ = (
         'menu','attribute',           # 外部类的调用
         'count','beats','keywords',   # 战斗相关变量
         'skill','action',             # 动作,为日后其他版本迭代做准备
-        '_skill_cache'                # 技能缓存,作为skill对旧字典的接口
+        '_skill_cache'                # 技能缓存，便于使用和查询
     )   
 
-    def __init__(self): # 大类Game中变量的声明和方法的使用
+    def __init__(self): # 变量的声明和方法的使用
         self.skill = bind_effects(load_json('data/skill.json'))
         self.beats = BEATS_MAP
         self.keywords = KEYWORD_SYNONYMS
         self.count = 0
+
         self.menu = Menu(self) 
         self.attribute = Attribute(self)
-        self._skill_cache = {}  #{技能名:(类别，等级，数据字典)}
+
+        self._skill_cache: Dict[str, SkillData]= {}  #{技能名:(类别，等级，数据字典)}
         self._build_skill_cache()   # 返回值为_skill_cache
 
-    def _build_skill_cache(self):   # 基础遍历，后续可更新
+    def _traverse_skill(self) -> Iterator[Tuple[str, str, str, Dict[str, Any]]]:   # 生成器迭代遍历
+        """生成器：遍历技能树，产出(类别, 等级, 技能名, 数据字典)"""
         for category, levels in self.skill.items():
-            for level, skill in levels.items():
-                for name, data in skill.items():
-                    self._skill_cache[name] = (category, level, data)
+            for level, skills in levels.items():
+                for name, data in skills.items():
+                    yield category, level, name, data
+    def _build_skill_cache(self) -> None:   # 使用遍历结果构建技能缓存
+        self._skill_cache.clear()
+        for category, level, name, data in self._traverse_skill():
+            self._skill_cache[name] = SkillData(
+                name=name,
+                category=category,
+                level=level,
+                cost=data.get("cost", 0),
+                damage=data.get("damage", 0),
+                effect=data.get("effect", lambda: print("招式效果缺失！"))
+            )
 
-    def _get_skill_meta(self, skill_name: str) -> tuple:     # 获取技能元数据
+    @lru_cache(maxsize=64)  # 缓存查询结果，提升性能
+    def _get_skill(self, skill_name: str) -> SkillData:     # 查询技能元数据
+        """统一查询入口：一次查找，返回完整对象"""
         if skill_name not in self._skill_cache:
-            raise KeyError(f"技能 '{skill_name}' 未定义")
+            # 提供友好提示，甚至可动态加载新技能
+            raise KeyError(f"技能 '{skill_name}' 未定义，请检查 skill.json")
         return self._skill_cache[skill_name]
-    def get_skill_cost(self, skill_name: str) -> int:        # 查询技能消耗
-        try:
-            _, _, data = self._get_skill_meta(skill_name)
-            return data["cost"]
-        except KeyError:
-            return 0
-    def get_skill_type(self, skill_name: str) -> str:        # 查询技能等级
-        """返回 'lv1' 或 'lv2'，暂时两个等级，后续可扩展"""
-        _, level, _ = self._get_skill_meta(skill_name)
-        return level
-    def get_skill_category(self, skill_name: str) -> str:    # 查询技能类别
-        """返回 'attack' 或 'defense'"""
-        category, _, _ = self._get_skill_meta(skill_name)
-        return category 
-    def get_skill_effect(self, skill_name: str) -> callable: # 提取招式效果函数
-        _, _, data = self._get_skill_meta(skill_name)
-        return data.get("effect", lambda: print("招式效果缺失！"))
-    def get_skill_damage(self, skill_name: str) -> int:      # 提取招式伤害值
-        _, _, data = self._get_skill_meta(skill_name)
-        return data.get("damage", 0)
+    def get_skill_cost(self, skill_name: str) -> int:       # 查询技能消耗
+        return self._get_skill(skill_name).cost
+    def get_skill_type(self, skill_name: str) -> str:       # 查询技能等级
+        return self._get_skill(skill_name).level
+    def get_skill_category(self, skill_name: str) -> str:   # 查询技能类别
+        return self._get_skill(skill_name).category
+    def get_skill_damage(self, skill_name: str) -> int:     # 查询技能伤害
+        return self._get_skill(skill_name).damage
+    def get_skill_effect(self, skill_name: str) -> Callable[[], None]:  # 查询技能效果
+        return self._get_skill(skill_name).effect
     
     def react(self, text: str): # 提取技能关键字来对应招式克制
         if not text:  # 处理None和空字符串
@@ -212,7 +237,7 @@ class Game:
         if self.attribute.defense_level:
             # 防御回合，单独处理伤害计算
             pc_lv2 = self.attribute.energy_get(False) >= 5
-            damage_to_player = self.damage_calculate(pc_lv2, self.attribute.defense_level, False)
+            damage_to_player = self.damage_calculate(pc_skill, self.attribute.defense_level, False)
             self.attribute.hp1 -= damage_to_player
             if self.attribute.hp1 < 0:
                 self.attribute.hp1 = 0
@@ -227,7 +252,7 @@ class Game:
         print("-" * 30)
         return True
 
-    def main(self): # 主循环，新增概念“阶段”，每回合分别有准备阶段、行动阶段、结算阶段
+    def main(self): # 主程序入口
         while 1:
             # 回合开始时检查胜负
             if not self.is_alive(True):

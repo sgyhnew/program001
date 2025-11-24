@@ -1,6 +1,7 @@
 from time import sleep
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Iterator, Tuple
+
 
 def say(txt, delay=2, end='\n'):                                    # 模拟说话停顿，增加观感
     print(txt, end=end, flush=True)
@@ -18,3 +19,10 @@ def bind_effects(data: Dict[str, Any]) -> Dict[str, Any]:           # 递归遍�
             else:
                 bind_effects(value)
     return data
+
+def traverse(self) -> Iterator[Tuple[str, str, str, Dict[str, Any]]]:
+    """生成器：遍历技能树，产出(类别, 等级, 技能名, 数据字典)"""
+    for category, levels in self.skill.items():
+        for level, skills in levels.items():
+            for name, data in skills.items():
+                yield category, level, name, data

@@ -1,4 +1,7 @@
-
+import sys
+sys.path.insert(0, r'D:/e/myprogram/Program/my/program001_FG') 
+from FG.constants import *
+from func import say, load_json, bind_effects
 class Attribute:    # 内部类属性系统，负责战斗中状态展示
     def __init__(self,game):
         self.game = game

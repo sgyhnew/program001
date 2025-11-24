@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum,auto
 
 class EnergyReason(Enum):   # 能量变化原因
     ROUND = 1         # 每回合开始
@@ -7,13 +7,21 @@ class EnergyReason(Enum):   # 能量变化原因
     DEFENSE_TURN = 2  # 防御回合
 
 class GamePhase(Enum):      # 游戏阶段
-    PREPARE = "准备阶段"    
-    ACTION = "行动阶段"
-    RESOLVE = "结算阶段"
+    PREPARE =        "准备阶段"    
+    ACTION_PLAYER =  "玩家行动阶段"
+    ACTION_PC =      "对手行动阶段"
+    RESOLVE =        "结算阶段"
+
+# class GameRound(Enum):      # 游戏回合
+#     ROUND1 = 1
+#     ROUND2 = 2
+#     ROUND3 = 3
+#     ROUND4 = 4
+#     ROUND5 = 5
 
 class SkillLevel(Enum):     # 技能等级
-    BASIC = "lv1"
-    ADVANCED = "lv2"
+    LV1 = "lv1"
+    LV2 = "lv2"
 
 
 KEYWORD_SYNONYMS = {        # 关键字同义词映射，所有同义词均映射到**标准关键字**
