@@ -2,6 +2,7 @@
 import sys
 sys.path.insert(0, r'D:/e/myprogram/Program/my/program001_FG') 
 from constants import *
+from constants import EnergyReason as ER
 from func import say, load_json, bind_effects
 
 import random
@@ -184,14 +185,14 @@ class Game:
         
         # 更新分数
         if player == pc:
-            self.attribute.energy_do(True, 'combat_draw')   # 玩家+1
-            self.attribute.energy_do(False, 'combat_draw')  # PC+1
+            self.attribute.energy_do(True, ER.COMBAT_DRAW)   # 玩家+1
+            self.attribute.energy_do(False, ER.COMBAT_DRAW)  # PC+1
             result =  "旗鼓相当，不分胜负！"
         elif self.beats[player] == pc:
-            self.attribute.energy_do(True, 'combat_win')
+            self.attribute.energy_do(True, ER.COMBAT_WIN)
             result =  "你更胜一筹，占得先机！"
         else:
-            self.attribute.energy_do(False, 'combat_win')
+            self.attribute.energy_do(False, ER.COMBAT_WIN)
             result = "对方招式克制，你落得下风！"
        
         # 受击判断
@@ -205,8 +206,8 @@ class Game:
 
         # 回合开始
         player = self.react(player_skill)
-        self.attribute.energy_do(True, 'round')
-        self.attribute.energy_do(False, 'round')
+        self.attribute.energy_do(True, ER.ROUND)
+        self.attribute.energy_do(False, ER.ROUND)
 
         # case1：玩家防御
         if self.attribute.defense_level:
@@ -216,7 +217,7 @@ class Game:
             sleep(1.5)
             player_skill = None  # 执行防御后不攻击
             #防御回合获得基础能量
-            self.attribute.energy_do(True, 'defense_turn')  
+            self.attribute.energy_do(True, ER.DEFENSE_TURN)  
 
         # case2：玩家攻击（防御回合跳过）
         if player_skill:

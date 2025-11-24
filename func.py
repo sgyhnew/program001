@@ -20,9 +20,3 @@ def bind_effects(data: Dict[str, Any]) -> Dict[str, Any]:           # 递归遍�
                 bind_effects(value)
     return data
 
-def traverse(self) -> Iterator[Tuple[str, str, str, Dict[str, Any]]]:
-    """生成器：遍历技能树，产出(类别, 等级, 技能名, 数据字典)"""
-    for category, levels in self.skill.items():
-        for level, skills in levels.items():
-            for name, data in skills.items():
-                yield category, level, name, data

@@ -32,22 +32,35 @@ class Attribute:    # 内部类属性系统，负责战斗中状态展示
         setattr(self, attr, new_val)
         return new_val
 
-    def energy_do(self, is_player: bool ,reason: int | str):   # 战斗中能量的获取
-        # 结果标识映射表
-        REASON = {  
-            'round': 1,         # 每回合开始
-            'combat_win': 3,    # 战斗胜利
-            'combat_draw': 1,   # 平局
-            'defense_turn': 2,  # 防御回合
-            # 'take_damage': 1,   # 受伤补偿
-        }
+    def _energy_delta(self, reason: int | str | Enum) -> int:   # 根据原因获取能量变化值
+        # 尝试1：枚举的 .value 属性（最可靠）
+        try:
+            return int(reason.value)  # 安全转换为整数
+        except AttributeError:
+            pass  # 不是枚举，继续尝试
+        
+        # 尝试2：直接是整数（如消耗能量 -cost）
+        # 必须放在字符串判断之前，因为字符串也有 .isdigit 方法
+        if isinstance(reason, int):
+            return reason
+        
+        # 尝试3：字符串映射（兼容旧代码）
+        if isinstance(reason, str):
+            try:
+                enum_name = reason.upper().replace(' ', '_')
+                return EnergyReason[enum_name].value
+            except KeyError:
+                print(f"[警告] 未知的能量原因字符串: '{reason}'")
+                return 0
+        
+        # 最终失败：无法解析
+        print(f"[警告] 无法解析能量变化: {reason} (类型: {type(reason).__name__})")
+        return 0
+    def energy_do(self, is_player: bool ,reason: EnergyReason | str | int) -> int:   # 战斗中能量的获取
+        # 根据原因调整能量,支持三种输入
 
-        # 实际表更量
-        delta = (   
-            reason
-            if isinstance(reason, int) 
-            else REASON.get(reason, 0)
-        )   
-
-        # 应用变更并返回新值
-        return self.energy_set(is_player, self.energy_get(is_player) + delta)
+        delta = self._energy_delta(reason)
+        
+        current = self.energy_get(is_player)
+        new_value = current + delta
+        return self.energy_set(is_player, new_value)
