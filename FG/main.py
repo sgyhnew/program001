@@ -13,6 +13,7 @@ from typing import Dict, Any, Callable, Iterator, Tuple
 from dataclasses import dataclass
 from system.menu import Menu
 from system.attribute import Attribute
+from system.combat import Combat
 
 @dataclass(frozen=True)  # frozen让对象不可变，可被缓存
 class SkillData:    # 技能数据结构
@@ -33,7 +34,7 @@ class SkillData:    # 技能数据结构
 
 class Game:
     __slots__ = (
-        'menu','attribute',           # 外部类的调用
+        'menu','attribute','combat',  # 外部类的调用
         'count','beats','keywords',   # 战斗相关变量
         'skill','action',             # 动作,为日后其他版本迭代做准备
         '_skill_cache'                # 技能缓存，便于使用和查询
@@ -47,7 +48,7 @@ class Game:
 
         self.menu = Menu(self) 
         self.attribute = Attribute(self)
-
+        self.combat = Combat(self)
         self._skill_cache: Dict[str, SkillData]= {}  #{技能名:(类别，等级，数据字典)}
         self._build_skill_cache()   # 返回值为_skill_cache
 
@@ -70,22 +71,24 @@ class Game:
             )
 
     @lru_cache(maxsize=64)  # 缓存查询结果，提升性能
-    def _get_skill(self, skill_name: str) -> SkillData:     # 查询技能元数据
+    def get_skill(self, skill_name: str) -> SkillData:     # 查询技能元数据
         """统一查询入口：一次查找，返回完整对象"""
         if skill_name not in self._skill_cache:
             # 提供友好提示，甚至可动态加载新技能
             raise KeyError(f"技能 '{skill_name}' 未定义，请检查 skill.json")
         return self._skill_cache[skill_name]
+    def get_skill_name(self, skill_name: str) -> str:       # 查询技能名称
+        return self.get_skill(skill_name).name
     def get_skill_cost(self, skill_name: str) -> int:       # 查询技能消耗
-        return self._get_skill(skill_name).cost
-    def get_skill_type(self, skill_name: str) -> str:       # 查询技能等级
-        return self._get_skill(skill_name).level
+        return self.get_skill(skill_name).cost
+    def get_skill_level(self, skill_name: str) -> str:      # 查询技能等级
+        return self.get_skill(skill_name).level
     def get_skill_category(self, skill_name: str) -> str:   # 查询技能类别
-        return self._get_skill(skill_name).category
+        return self.get_skill(skill_name).category
     def get_skill_damage(self, skill_name: str) -> int:     # 查询技能伤害
-        return self._get_skill(skill_name).damage
+        return self.get_skill(skill_name).damage
     def get_skill_effect(self, skill_name: str) -> Callable[[], None]:  # 查询技能效果
-        return self._get_skill(skill_name).effect
+        return self.get_skill(skill_name).effect
     
     def react(self, text: str): # 提取技能关键字来对应招式克制
         if not text:  # 处理None和空字符串
@@ -128,7 +131,7 @@ class Game:
         # 2. 判断攻击方技能等级
         is_lv2_attack = False
         if attacker_skill:
-            is_lv2_attack = self.get_skill_type(attacker_skill) == "lv2"
+            is_lv2_attack = self.get_skill_level(attacker_skill) == "lv2"
         else:
             # 防御回合：根据防御等级反推
             is_lv2_attack = defender_level == "lv2"
@@ -201,58 +204,69 @@ class Game:
         return f"{result}{defense_info} (你受到{damage_to_player}点伤害，对方受到{damage_to_pc}点伤害)"
     
     def fight(self, player_skill: str): # 回合制战斗
-        # 明确区分防御和攻击路径
-        # is_defense_turn = self.attribute.defense_level is not None
-
-        # 回合开始
-        player = self.react(player_skill)
-        self.attribute.energy_do(True, ER.ROUND)
-        self.attribute.energy_do(False, ER.ROUND)
-
-        # case1：玩家防御
-        if self.attribute.defense_level:
-            def_name = "进阶防御" if self.attribute.defense_level == 'lv2' else "基础防御"
-            print("你", end="")
-            self.get_skill_effect(def_name)()
-            sleep(1.5)
-            player_skill = None  # 执行防御后不攻击
-            #防御回合获得基础能量
-            self.attribute.energy_do(True, ER.DEFENSE_TURN)  
-
-        # case2：玩家攻击（防御回合跳过）
-        if player_skill:
-            print("你", end="")
-            self.get_skill_effect(player_skill)()
-            sleep(1.5) 
-
-        # case3：电脑
-        standard_keywords = set(self.keywords.values())
-        pc = random.choice(list(standard_keywords))
-        pc_lv2 = self.attribute.energy_get(False) >= 5
-        pc_skill = self.action_by_key(pc, pc_lv2)
-        print("对方", end="")
-        self.get_skill_effect(pc_skill)()
-        sleep(1.5)
-
-        # 判定并显示伤害（修复：防御回合不调用judge）
-        if self.attribute.defense_level:
-            # 防御回合，单独处理伤害计算
-            pc_lv2 = self.attribute.energy_get(False) >= 5
-            damage_to_player = self.damage_calculate(pc_skill, self.attribute.defense_level, False)
-            self.attribute.hp1 -= damage_to_player
-            if self.attribute.hp1 < 0:
-                self.attribute.hp1 = 0
-            defense_names = {'lv1': 'lv1防御', 'lv2': 'lv2防御'}
-            defense_info = f" [你使用了{defense_names.get(self.attribute.defense_level, '')}]" if self.attribute.defense_level else ""
-            say(f"你全力防御{defense_info}，受到{damage_to_player}点伤害")
-        else:
-            # 正常攻击回合
-            print(self.judge(player, pc))
-
-        sleep(2)
-        print("-" * 30)
+  
+        """Game类只负责调用战斗系统和处理结果"""
+        result = self.combat.execute_turn(player_skill, self.attribute.defense_level)
+        
+        # 根据结果触发额外逻辑（如重伤提示）
+        if result.damage_to_player > 20:
+            say("这一击让你气血翻涌！")
+        
+        # 显示结果
+        print(result.description)
         return True
+          # # 明确区分防御和攻击路径
+        # # is_defense_turn = self.attribute.defense_level is not None
 
+        # # 回合开始
+        # player = self.react(player_skill)
+        # self.attribute.energy_do(True, ER.ROUND)
+        # self.attribute.energy_do(False, ER.ROUND)
+
+        # # case1：玩家防御
+        # if self.attribute.defense_level:
+        #     def_name = "进阶防御" if self.attribute.defense_level == 'lv2' else "基础防御"
+        #     print("你", end="")
+        #     self.get_skill_effect(def_name)()
+        #     sleep(1.5)
+        #     player_skill = None  # 执行防御后不攻击
+        #     #防御回合获得基础能量
+        #     self.attribute.energy_do(True, ER.DEFENSE_TURN)  
+
+        # # case2：玩家攻击（防御回合跳过）
+        # if player_skill:
+        #     print("你", end="")
+        #     self.get_skill_effect(player_skill)()
+        #     sleep(1.5) 
+
+        # # case3：电脑
+        # standard_keywords = set(self.keywords.values())
+        # pc = random.choice(list(standard_keywords))
+        # pc_lv2 = self.attribute.energy_get(False) >= 5
+        # pc_skill = self.action_by_key(pc, pc_lv2)
+        # print("对方", end="")
+        # self.get_skill_effect(pc_skill)()
+        # sleep(1.5)
+
+        # # 判定并显示伤害（修复：防御回合不调用judge）
+        # if self.attribute.defense_level:
+        #     # 防御回合，单独处理伤害计算
+        #     pc_lv2 = self.attribute.energy_get(False) >= 5
+        #     damage_to_player = self.damage_calculate(pc_skill, self.attribute.defense_level, False)
+        #     self.attribute.hp1 -= damage_to_player
+        #     if self.attribute.hp1 < 0:
+        #         self.attribute.hp1 = 0
+        #     defense_names = {'lv1': 'lv1防御', 'lv2': 'lv2防御'}
+        #     defense_info = f" [你使用了{defense_names.get(self.attribute.defense_level, '')}]" if self.attribute.defense_level else ""
+        #     say(f"你全力防御{defense_info}，受到{damage_to_player}点伤害")
+        # else:
+        #     # 正常攻击回合
+        #     print(self.judge(player, pc))
+
+        # sleep(2)
+        # print("-" * 30)
+        # return True
+    
     def main(self): # 主程序入口
         while 1:
             # 回合开始时检查胜负

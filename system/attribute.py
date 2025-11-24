@@ -7,11 +7,13 @@ class Attribute:    # 内部类属性系统，负责战斗中状态展示
         self.game = game
         self.hp1 = 100  # player
         self.hp2 = 100  # pc
+        self.hp1_top = 100  # 玩家血量上限
+        self.hp2_top = 100  # 对手血量上限
         self._energy_player = 20  # 玩家能量 
         self._energy_pc = 0       # PC能量（FG2.0时移除）
         self.defense_level = None # 防御等级
         self.energy_player_top = 100    # 能量上限
-        self.energy_pc_top = 50  # PC能量上限较低，为移除做铺垫
+        self.energy_pc_top = 50         # PC能量上限较低，为移除做铺垫
 
     def attribute_desc(self): # 状态描述
         
@@ -64,3 +66,9 @@ class Attribute:    # 内部类属性系统，负责战斗中状态展示
         current = self.energy_get(is_player)
         new_value = current + delta
         return self.energy_set(is_player, new_value)
+    
+    def take_damage(self, is_player: bool, amount: int) -> None:
+            """统一扣血接口"""
+            hp_attr = 'hp1' if is_player else 'hp2'
+            current = getattr(self, hp_attr)
+            setattr(self, hp_attr, max(0, current - amount))
