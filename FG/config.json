@@ -1,0 +1,25 @@
+{
+  "balance": {
+    "damage": {
+      "base": 10,
+      "advanced": 25
+    },
+    "energy": {
+      "cost_advanced": 5,
+      "player_start": 20,
+      "player_max": 100,
+      "pc_start": 0,
+      "pc_max": 50
+    },
+    "defense": {
+      "lv1_reduction_basic": 5,
+      "lv1_reduction_advanced": 10,
+      "lv2_reduction_basic": 10,
+      "lv2_reduction_advanced": 20
+    }
+  },
+  "ui": {
+    "delay_between_actions": 2.0,
+    "story_text_speed": 1.5
+  }
+}

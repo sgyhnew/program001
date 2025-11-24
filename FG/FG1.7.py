@@ -1,26 +1,41 @@
+# -*- coding: utf-8 -*-
+import sys
+sys.path.insert(0, r'D:/e/myprogram/Program/my/program001_FG') 
 import random
 from time import sleep
+from constants import *
+import json
+from typing import Dict, Any
 
-def say(txt, delay=2, end='\n'):  # 模拟说话停顿，增加观感
+def say(txt, delay=2, end='\n'):                                    # 模拟说话停顿，增加观感
     print(txt, end=end, flush=True)
     sleep(delay)
+def load_json(file_path: str, encoding='utf-8') -> Dict[str, Any]:  # 通用JSON加载函数
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+def bind_effects(data: Dict[str, Any]) -> Dict[str, Any]:           # 递归遍历，为每个effect字符串绑定打印函数
+    for key, value in data.items():
+        if isinstance(value, dict):
+            if "effect" in value and isinstance(value["effect"], str):
+                # 核心：字符串 → 打印函数
+                effect_text = value["effect"]
+                value["effect"] = lambda txt=effect_text: print(txt)
+            else:
+                bind_effects(value)
+    return data
 
 class Game:
     __slots__ = (
-        'menu','attribute', # 内部类的实例化调用
-        'count','beats','keywords',   
-        'attack1','attack2',  
-        'defense1','defense2', 
-        'skill',
-        'action',       # 其他动作,为日后其他版本迭代做准备
-        '_skill_cache'  # 技能缓存,作为skill对旧字典的接口
+        'menu','attribute','concept',          # 内部类的实例化调用
+        'count','beats','keywords',   # 战斗相关变量
+        'skill','action',             # 动作,为日后其他版本迭代做准备
+        '_skill_cache'                # 技能缓存,作为skill对旧字典的接口
     )   
-    class Menu: # 内部类菜单系统，负责所有用户交互
+    class Menu:         # 内部类菜单系统，负责所有用户交互
         def __init__(self,game):
             self.game = game    # 外部调用
         
-        # 增加菜单选择的服用方法，减少在攻击菜单和防御菜单的重复
-        def _render_menu(self, options: dict, title: str):
+        def _render_menu(self, options: dict, title: str):   # 增加菜单选择的复用方法，减少在攻击菜单和防御菜单的重复
             print(f"\n{title}")
             for key, (name, unlocked) in options.items():
                 if key == 'z':
@@ -108,8 +123,7 @@ class Game:
                 return self.menu_defense()
             # 分支4：唯一返回
              # 返回防御等级标识
-            return 'lv1' if name == "基础防御" else 'lv2'
-        
+            return 'lv1' if name == "基础防御" else 'lv2'  
     class Attribute:    # 内部类属性系统，负责战斗中状态展示
         def __init__(self,game):
             self.game = game
@@ -159,133 +173,90 @@ class Game:
 
             # 应用变更并返回新值
             return self.energy_set(is_player, self.energy_get(is_player) + delta)
-
-    def __init__(self): # 大类Game中变量的声明
-        self.attack1 = {
-            "基础拳": lambda: print("挥出一拳，拳风袭面门。"),
-            "基础剑": lambda: print("刺出一剑，刺向薄弱处。"),
-            "基础刀": lambda: print("砍出一刀，劈向脑门。")            
-        }
-        self.attack2 = {
-            "进阶拳": lambda: print("负手而立，倏然挥出一拳，气动如龙！此拳刚猛而无畏，一拳之威，百鸟溃散！"),
-            "进阶剑": lambda: print("躬身、出剑，此世间绝无这么快的剑，也无这么诗意的杀机！"),
-            "进阶刀": lambda: print("高高跃起，蓄力下劈。此刀势无可披靡，似若疯魔从天而降，神佛具惊！")
-        }
-        self.defense1 = {
-            "基础防御": lambda: print("气沉丹田,运转自身内力。")
-        }
-        self.defense2 = {
-            "进阶防御": lambda: print("吐纳间蕴含天地之力,似乎没有事物可以伤害自身一毫了。")
-        }
-        self.skill = { # [category][level][skill_name][``]
-            "attack": {
-                "lv1": {
-                    "基础拳": {"cost": 0, "damage": 10, "effect": lambda: print("挥出一拳，拳风袭面门。")},
-                    "基础剑": {"cost": 0, "damage": 10, "effect": lambda: print("刺出一剑，刺向薄弱处。")},
-                    "基础刀": {"cost": 0, "damage": 10, "effect": lambda: print("砍出一刀，劈向脑门。")},
-                },
-                "lv2": {
-                    "进阶拳": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("负手而立，倏然挥出一拳，气动如龙！")},
-                    "进阶剑": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("躬身、出剑，此世间绝无这么快的剑！")},
-                    "进阶刀": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("高高跃起，蓄力下劈。此刀势无可披靡！")},
-                },
-            },
-            "defense": {
-                "lv1": {
-                    "基础防御": {"cost": 0, "effect": lambda: print("气沉丹田,运转自身内力。")},
-                },
-                "lv2": {
-                    "进阶防御": {"cost": 5, "effect": lambda: print("吐纳间蕴含天地之力,似乎没有事物可以伤害自身一毫了。")},
-                },
-            },
-        }
-        self.beats = {"拳": "剑", "剑": "刀", "刀": "拳"}
-        self.keywords ={"拳","剑","刀"} #
+        
+    def __init__(self): # 大类Game中变量的声明和方法的使用
+        # self.skill = { # [category][level][skill_name][``]
+        #     "attack": {
+        #         "lv1": {
+        #             "基础拳": {"cost": 0, "damage": 10, "effect": lambda: print("挥出一拳，拳风袭面门。")},
+        #             "基础剑": {"cost": 0, "damage": 10, "effect": lambda: print("刺出一剑，刺向薄弱处。")},
+        #             "基础刀": {"cost": 0, "damage": 10, "effect": lambda: print("砍出一刀，劈向脑门。")},
+        #         },
+        #         "lv2": {
+        #             "进阶拳": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("负手而立，倏然挥出一拳，气动如龙！")},
+        #             "进阶剑": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("躬身、出剑，此世间绝无这么快的剑！")},
+        #             "进阶刀": {"cost": 5, "damage": 25, "cooldown": 3, "effect": lambda: print("高高跃起，蓄力下劈。此刀势无可披靡！")},
+        #         },
+        #     },
+        #     "defense": {
+        #         "lv1": {
+        #             "基础防御": {"cost": 0, "effect": lambda: print("气沉丹田,运转自身内力。")},
+        #         },
+        #         "lv2": {
+        #             "进阶防御": {"cost": 5, "effect": lambda: print("吐纳间蕴含天地之力,似乎没有事物可以伤害自身一毫了。")},
+        #         },
+        #     },
+        # }
+        self.skill = bind_effects(load_json('data/skill.json'))
+        self.beats = BEATS_MAP
+        self.keywords = KEYWORD_SYNONYMS
         self.count = 0
         self.menu = self.Menu(self) 
         self.attribute = self.Attribute(self)
         self._skill_cache = {}  #{技能名:(类别，等级，数据字典)}
         self._build_skill_cache()   # 返回值为_skill_cache
 
-    def react(self, text: str): # 提取技能关键字来对应招式克制
-        if not text:  # 处理None和空字符串
-            return None
-        for i in self.keywords:
-            if i in text:
-                return i
-        return None 
-    
     def _build_skill_cache(self):   # 基础遍历，后续可更新
-        """一次性遍历skills，建立技能名到(类别,等级,数据)的映射"""
+        """一次性遍历skill，建立技能名到(类别,等级,数据)的映射"""
         for category, levels in self.skill.items():
-            for level, skills in levels.items():
-                for name, data in skills.items():
+            for level, skill in levels.items():
+                for name, data in skill.items():
                     self._skill_cache[name] = (category, level, data)
 
-    def _get_skill_meta(self, skill_name: str) -> tuple:    # 获取技能元数据
-        """获取技能元数据 (类别, 等级, 数据字典)"""
+    def _get_skill_meta(self, skill_name: str) -> tuple:     # 获取技能元数据
         if skill_name not in self._skill_cache:
             raise KeyError(f"技能 '{skill_name}' 未定义")
         return self._skill_cache[skill_name]
-    def get_skill_cost(self, skill_name: str) -> int:       # 查询技能消耗
+    def get_skill_cost(self, skill_name: str) -> int:        # 查询技能消耗
         try:
             _, _, data = self._get_skill_meta(skill_name)
             return data["cost"]
         except KeyError:
             return 0
-    def get_skill_type(self, skill_name: str) -> str:       # 查询技能等级
-        """返回 'lv1' 或 'lv2'"""
+    def get_skill_type(self, skill_name: str) -> str:        # 查询技能等级
+        """返回 'lv1' 或 'lv2'，暂时两个等级，后续可扩展"""
         _, level, _ = self._get_skill_meta(skill_name)
         return level
-    def get_skill_category(self, skill_name: str) -> str:   # 查询技能类别
+    def get_skill_category(self, skill_name: str) -> str:    # 查询技能类别
         """返回 'attack' 或 'defense'"""
         category, _, _ = self._get_skill_meta(skill_name)
         return category 
-    def get_skill_effect(self, skill_name: str) -> callable:# 提取招式效果函数
-        """从skills树中提取招式效果函数"""
+    def get_skill_effect(self, skill_name: str) -> callable: # 提取招式效果函数
         _, _, data = self._get_skill_meta(skill_name)
         return data.get("effect", lambda: print("招式效果缺失！"))
+
+    def react(self, text: str): # 提取技能关键字来对应招式克制
+        if not text:  # 处理None和空字符串
+            return None
+        for synonym, standard in self.keywords.items(): # 查找同义词对应的标准关键字
+            if synonym in text:
+                return standard
+        return None 
     
-    def action_by_key(self, key: str, lv2: bool = False) -> str | None:
-        """根据关键字（拳/剑/刀）和等级返回技能名"""
+    def action_by_key(self, key: str, lv2: bool = False) -> str | None:  # 根据关键字和等级选择招式
         level = "lv2" if lv2 else "lv1"
-        # PC只从attack类别选
-        if "attack" in self.skill and level in self.skill["attack"]:
-            for name in self.skill["attack"][level]:
-                if key in name:
-                    return name
-        return None
-    
-    def _find_node(self, node: dict, target: str, return_parent: bool = True) -> dict | None:   # 深度优先搜索（DFS），可返回父节点或值
-        """辅助：在嵌套字典中搜索键，可返回父节点或值"""
-        if not isinstance(node, dict):
+
+        # 防御性检查：技能结构是否存在
+        if "attack" not in self.skill or level not in self.skill["attack"]:
+            print(f"[错误] 技能结构异常: attack={self.skill.get('attack')} level={level}")
             return None
         
-        if target in node:
-            return node if return_parent else node[target]
-        
-        for child in node.values():
-            if isinstance(child, dict):
-                result = self._find_node(child, target, return_parent)
-                if result:
-                    return result
+        # 遍历查找包含key的技能名
+        for skill_name in self.skill["attack"][level]:
+            if key in skill_name:  
+                return skill_name
         return None
-
-    def _collect_skill_names(self, node: dict) -> list: # 收集嵌套字典中所有技能名（第三层键）
-        """辅助：收集嵌套字典中所有技能名（第三层键）"""
-        names = []
-        if not isinstance(node, dict):
-            return names
         
-        # 检查当前层级的值是否为技能字典（有cost字段）
-        for name, data in node.items():
-            if isinstance(data, dict) and "cost" in data:
-                names.append(name)
-            elif isinstance(data, dict):
-                names.extend(self._collect_skill_names(data))
-        
-        return names
-
     def calculate_damage(   # 伤害计算
             self, skill_attack ,lv_defense ,is_countered
     ):
@@ -308,7 +279,6 @@ class Game:
         if is_countered:
             damage *=2
         return damage
-
     def apply_damage(self, damage_to_pc, damage_to_player): # 应用伤害
         self.attribute.hp2 -= damage_to_pc
         if self.attribute.hp2 < 0:
@@ -385,9 +355,10 @@ class Game:
             sleep(1.5) 
 
         # case3：电脑
-        pc = random.choice(list(self.keywords))
+        standard_keywords = set(self.keywords.values())
+        pc = random.choice(list(standard_keywords))
         pc_lv2 = self.attribute.energy_get(False) >= 5
-        pc_skill = self.action_by_key(pc, self.attribute._energy_pc >= 5)
+        pc_skill = self.action_by_key(pc, pc_lv2)
         print("对方", end="")
         self.get_skill_effect(pc_skill)()
         sleep(1.5)
@@ -411,7 +382,7 @@ class Game:
         print("-" * 30)
         return True
 
-    def main(self): # 主循环
+    def main(self): # 主循环，新增概念“阶段”，每回合分别有准备阶段、行动阶段、结算阶段
         while 1:
             # 回合开始时检查胜负
             if not self.is_alive(True):
@@ -426,7 +397,10 @@ class Game:
             # 进入新回合
             self.count +=1
             print(f"第{self.count}回合")
+
+            # 准备阶段
             self.attribute.defense_level = None # 重置防御等级
+
 
             if self.attribute.hp2 > 50:
                 say("对方覆手而立，侧视而笑：'阁下出招吧，拳、剑、刀皆可，若有疑惑我自可欣然解答。若是不愿再战，逃走即可！'\n")
