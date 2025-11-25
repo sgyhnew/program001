@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-import sys
-sys.path.insert(0, r'D:/e/myprogram') 
-
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
+if TYPE_CHECKING:
+    from FG.main import Game
+from dataclasses import dataclass
+
 import random
 from time import sleep
 
 from FG.constants import *
 from FG.constants import EnergyReason as ER
 from FG.constants import GamePhase as GP
-if TYPE_CHECKING:
-    from FG.main import Game
-from .attribute import Attribute
+from system.attribute import Attribute
 from func import say
 
 @dataclass
@@ -25,7 +23,7 @@ class CombatResult:  # 战斗结果数据类
 class Combat:  # 战斗系统 
     def __init__(self, game: Game):
         self.game = game
-        self.attribute = Attribute(game)  
+        self.attribute = game.attribute
 
     def execute_turn(self, player_input: str, defense_level: str | None) -> CombatResult:   # 执行一个战斗回合
         try:
@@ -38,14 +36,13 @@ class Combat:  # 战斗系统
             return CombatResult(0, 0, "战斗出现异常")
     
     def _phase_prepare(self):   # 准备阶段
-        print(f"{GP.PREPARE.value}")
+        say(f"【{GP.PREPARE.value}】",ANIMATION_SPEED)
         self.attribute.energy_do(True, ER.ROUND)
         self.attribute.energy_do(False, ER.ROUND)
-        sleep(0.5)
         return None
     def _phase_player_action(   # 玩家行动阶段
             self, player_input: str, defense_level: str | None):
-        print(f"{GP.ACTION_PLAYER.value}")
+        say(f"【{GP.ACTION_PLAYER.value}】",ANIMATION_SPEED)
 
         # case1: 防御选择
         if defense_level:
@@ -58,23 +55,23 @@ class Combat:  # 战斗系统
         # case3：暂无
         return None
     def _phase_pc_action(self): # 对手行动阶段
-        print(f"{GP.ACTION_PC.value}")
+        say(f"【{GP.ACTION_PC.value}】",ANIMATION_SPEED)
 
         skill_name = self._choose_pc_skill()
         self._execute_effect(skill_name, "对手")
         return skill_name # 返回name而不是effect
     def _phase_resolve(self,    # 结算阶段
         player_skill_name, pc_skill_name, defense_level: str | None) -> CombatResult:
-        print(f"{GP.RESOLVE.value}")
+        say(f"【{GP.RESOLVE.value}】",ANIMATION_SPEED)
 
         if defense_level:
-            damage = self.game.damage_calculate(
+            damage = self.attribute.damage_calculate(
                 pc_skill_name, defense_level, False
             )
-            self.attribute.take_damage(True, damage)
+            self.attribute.damage_take(True, damage)
             return self._build_defense_result(damage)
         else:
-            return self._build_combat_result(player_skill_name, pc_skill_name)
+            return self.combat(player_skill_name, pc_skill_name)
 
     def _execute_effect(self, skill_name: str, subject: str):   # 技能效果
         print(subject, end="")
@@ -88,7 +85,7 @@ class Combat:  # 战斗系统
         self.attribute.energy_do(True, EnergyReason.DEFENSE_TURN)
         sleep(1.5 * ANIMATION_SPEED)
 
-    def _choose_pc_skill(self) -> str:  # pc技能选择逻辑
+    def _choose_pc_skill(self) -> str:                          # pc技能选择逻辑
         current_hp = self.attribute.hp2
         max_hp = getattr(self.attribute, 'hp2_top', 100)
         hp_percentage = current_hp / max_hp
@@ -102,7 +99,7 @@ class Combat:  # 战斗系统
             # 留余
             return self._get_random_attack_skill_by_level("lv2")   # 当前默认用lv2
 
-    def _get_random_attack_skill_by_level(self, target_level: str) -> str:
+    def _get_random_attack_skill_by_level(self, target_level: str) -> str:  # 在指定等级中随机选1个攻击技能
         """基于基础接口构建：在指定等级中随机选1个攻击技能"""
         # 获取所有技能名称
         all_skill_names = list(self.game._skill_cache.keys())
@@ -121,12 +118,12 @@ class Combat:  # 战斗系统
         print(f"[警告] 等级 '{target_level}' 没有找到攻击技能，使用默认技能")
         return "基础拳"
     
-    def _build_defense_result(self, damage: int) -> CombatResult:
+    def _build_defense_result(self, damage: int) -> CombatResult:       # 防御结果构建
         names = {'lv1': '基础防御', 'lv2': '进阶防御'}
         desc = f"你全力防御【{names.get(self.attribute.defense_level, '')}】，受到{damage}点伤害"
         return CombatResult(damage, 0, desc)
 
-    def _build_combat_result(self, player_skill_name, pc_skill_name) -> CombatResult:
+    def combat(self, player_skill_name, pc_skill_name) -> CombatResult: #   战斗结果构建
         # 简化版：复用原有judge逻辑
         player = self.game.react(player_skill_name if player_skill_name else None)
         pc = self.game.react(pc_skill_name if pc_skill_name else None)
@@ -134,20 +131,20 @@ class Combat:  # 战斗系统
         player_countered = self.game.beats.get(player) == pc if player else False
         pc_countered = self.game.beats.get(pc) == player if player else False
         
-        damage_to_pc = self.game.damage_calculate(
+        damage_to_pc = self.attribute.damage_calculate(
             player_skill_name if player_skill_name else None, 
             None, 
             player_countered
         )
-        damage_to_player = self.game.damage_calculate(
+        damage_to_player = self.attribute.damage_calculate(
             pc_skill_name, 
             self.attribute.defense_level, 
             pc_countered
         )
         
         # 应用伤害
-        self.attribute.take_damage(False, damage_to_pc)
-        self.attribute.take_damage(True, damage_to_player)
+        self.attribute.damage_take(False, damage_to_pc)
+        self.attribute.damage_take(True, damage_to_player)
         
         # 生成描述文本
         if player == pc:
