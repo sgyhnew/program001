@@ -142,23 +142,23 @@ class Menu:       # 菜单系统，负责所有用户交互
                     status = ''
                 print(f" [{key}] {name} {status}")
 
-                # # 增强对技能的渲染
-                # if hasattr(self.game, 'get_skill'):
-                #     try:
-                #         skill_data = self.game.get_skill(name)
-                #         # 显示伤害、冷却等信息
-                #         damage_info = f"伤害:{skill_data.damage}" if skill_data.damage > 0 else ""
-                #         cooldown_info = f"冷却:{skill_data.cooldown}" if skill_data.cooldown > 0 else ""
-                #         effect_info = f"效果:{skill_data.effect[:10]}..." if skill_data.effect else ""
+                # 增强对技能的渲染
+                if hasattr(self.game, 'get_skill'):
+                    try:
+                        skill_data = self.game.get_skill(name)
+                        # 显示伤害、冷却等信息
+                        damage_info = f"伤害:{skill_data.damage}" if skill_data.damage > 0 else ""
+                        cooldown_info = f"冷却:{skill_data.cooldown}" if skill_data.cooldown > 0 else ""
+                        effect_info = f"效果:{skill_data.effect[:10]}..." if skill_data.effect else ""
                         
-                #         extra_info = " ".join(filter(None, [damage_info, cooldown_info, effect_info]))
-                #         if extra_info:
-                #             status = f"{status} [{extra_info}]"
+                        extra_info = " ".join(filter(None, [damage_info, cooldown_info, effect_info]))
+                        if extra_info:
+                            status = f"{status} [{extra_info}]"
                             
-                #     except KeyError:
-                #         pass  # 技能数据获取失败，使用基础显示
+                    except KeyError:
+                        pass  # 技能数据获取失败，使用基础显示
                 
-                # print(f" [{key}] {name} {status}")
+                print(f" [{key}] {name} {status}")
             
             # 渲染底部控制栏
             controls = []
@@ -401,11 +401,6 @@ class Menu:       # 菜单系统，负责所有用户交互
             self.stack.clear()
             self.stack.push('main')
             
-            if category == 'attack':
-                return skill_name  # 返回技能名用于攻击
-            elif category == 'defense':
-                level_num = int(level[2:]) #返回整数
-                return level_num  # 返回等级用于防御
-        
+            return skill_name
         return None
 
