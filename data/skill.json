@@ -1,22 +1,74 @@
 {
-            "attack": {
-                "lv1": {
-                    "基础拳": {"cost": 0, "damage": 10, "effect": "挥出一拳，拳风袭面门。"},
-                    "基础剑": {"cost": 0, "damage": 10, "effect": "刺出一剑，刺向薄弱处。"},
-                    "基础刀": {"cost": 0, "damage": 10, "effect": "砍出一刀，劈向脑门。"}
-                },
-                "lv2": {
-                    "进阶拳": {"cost": 5, "damage": 25, "cooldown": 3, "effect": "负手而立，倏然挥出一拳，气动如龙！"},
-                    "进阶剑": {"cost": 5, "damage": 25, "cooldown": 3, "effect": "躬身、出剑，此世间绝无这么快的剑！"},
-                    "进阶刀": {"cost": 5, "damage": 25, "cooldown": 3, "effect": "高高跃起，蓄力下劈。此刀势无可披靡！"}
-                }
+    "attack": {
+        "lv1": {
+            "基础拳": {
+                "cost": 0,"priority_level": "P2","priority": 2,
+                "effect": "挥出一拳，拳风袭面门。",
+                "damage": 10,
+                "type": "拳法"
             },
-            "defense": {
-                "lv1": {
-                    "基础防御": {"cost": 0, "effect": "气沉丹田,运转自身内力。"}
-                },
-                "lv2": {
-                    "进阶防御": {"cost": 5, "effect": "吐纳间蕴含天地之力,似乎没有事物可以伤害自身一毫了。"}
-                }
+            "基础剑": {
+                "cost": 0,"priority_level": "P2","priority": 2,
+                "effect": "刺出一剑，刺向薄弱处。",
+                "damage": 10,
+                "type": "剑法"
+            },
+            "基础刀": {
+                "cost": 0,"priority_level": "P2","priority": 2,
+                "effect": "砍出一刀，劈向脑门。",
+                "damage": 10,
+                "type": "刀法"
+            },
+            "基础棍": {
+                "cost": 0,"priority_level": "P2","priority": 2,
+                "effect": "挥动长棍，扫向对手。",
+                "damage": 10,
+                "type": "棍法"
             }
+        },
+        "lv2": {
+            "进阶拳": {
+                "cost": 5,"priority_level": "P2","priority": 2,
+                "effect": "负手而立，倏然挥出一拳，气动如龙！",
+                "damage": 25,
+                "cooldown": 3,
+                "type": "拳法"
+            },
+            "进阶剑": {
+                "cost": 5,"priority_level": "P2","priority": 2,
+                "effect": "躬身、出剑，此世间绝无这么快的剑！",
+                "damage": 25,
+                "cooldown": 3,
+                "type": "剑法"
+            },
+            "进阶刀": {
+                "cost": 5,"priority_level": "P2","priority": 2,
+                "effect": "高高跃起，蓄力下劈。此刀势无可披靡！",
+                "damage": 25,
+                "cooldown": 3,
+                "type": "刀法"
+            },
+            "进阶棍": {
+                "cost": 5,"priority_level": "P2","priority": 2,
+                "effect": "旋转长棍，化作漫天棍影，铺天盖地而来！",
+                "damage": 25,
+                "cooldown": 3,
+                "type": "棍法"
+            }
+        }
+    },
+    "defense": {
+        "lv1": {
+            "基础防御": {
+                "cost": 0,"priority_level": "P2","priority": 2,
+                "effect": "气沉丹田，运转自身内力，可减少少量伤害。"
+            }
+        },
+        "lv2": {
+            "进阶防御": {
+                "cost": 5,"priority_level": "P2","priority": 2,
+                "effect": "吐纳间蕴含天地之力，似乎没有事物可以伤害自身一毫了。"
+            }
+        }
     }
+}

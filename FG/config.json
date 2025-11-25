@@ -1,23 +1,14 @@
 {
-  "balance": {
-    "damage": {
-      "lv1": 10,
-      "lv2": 25
-    },
-    "energy": {
-      "cost_lv2": 5,
-      "player_start": 20,
+  "combat": {          
+    "hp": {               
+      "player_initial": 100,   
+      "pc_initial": 100,
       "player_max": 100,
-      "pc_start": 0,
-      "pc_max": 50
+      "pc_max": 100
     },
-    "defense": {
-      "lv1": 5,
-      "lv2": 20
+    "energy": {           
+      "player_initial": 20,
+      "pc_max": 50
     }
-  },
-  "ui": {
-    "delay_between_actions": 2.0,
-    "story_text_speed": 1.5
   }
 }

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from FG.main import Game
 from FG.constants import *
-from func import say, load_json, bind_effects
+from func import say, load_json
 class Attribute:    # 内部类属性系统，负责战斗中状态展示
     def __init__(self,game):
         self.game = game
@@ -37,13 +37,11 @@ class Attribute:    # 内部类属性系统，负责战斗中状态展示
         setattr(self, attr, new_val)
         return new_val
 
-    def _energy_delta(self, reason: int | str | Enum) -> int:   # 根据原因获取能量变化值
+    def _energy_delta(self, reason: int | str | EnergyReason) -> int:   # 根据原因获取能量变化值
         # case1：枚举的 .value 属性
-        try:
-            return int(reason.value)  # 安全转换为整数
-        except AttributeError:
-            pass  # 不是枚举，继续尝试
-        
+        if isinstance(reason, EnergyReason):
+            return int(reason.value)  # 转换为整数
+    
         # case2：整数（如消耗能量 -cost）
         # 必须放在字符串判断之前，因为字符串也有 .isdigit 方法
         if isinstance(reason, int):
@@ -70,49 +68,17 @@ class Attribute:    # 内部类属性系统，负责战斗中状态展示
         new_value = current + delta
         return self.energy_set(is_player, new_value)
     
-    def damage_calculate(   # 伤害计算
-            self, 
-            attacker_skill: str | None,      # 攻击方技能名（防御回合为None）
-            defender_level: str | None,      # 防御方等级（'lv1', 'lv2' 或 None）
-            is_countered: bool               # 是否被克制
-        ) -> int:
+    def damage_take(        # 伤害应用 
+            self, is_player: bool, damage: int):   
+            if damage <= 0:
+                return
+            if is_player:
+                self.hp1 = max(0, self.hp1 - damage)
+            else:
+                self.hp2 = max(0, self.hp2 - damage)
+            
+            # 扩展：触发受伤事件
+            if is_player and damage > 20:
+                print("你受了重伤！")
 
-        # 1. 获取基础伤害（防御回合用默认进阶/基础伤害）
-        if attacker_skill is None:
-            # 防御回合：无玩家攻击，用防御等级反推
-            # 默认伤害 = config.json中数值（暂时硬编码，后续可抽离）
-            base_damage = 25 if defender_level == "lv2" else 10
-        else:
-            # 正常回合：从技能元数据读取
-            base_damage = self.game.get_skill_damage(attacker_skill)
-        
-        # 2. 判断攻击方技能等级
-        is_lv2_attack = False
-        if attacker_skill:
-            is_lv2_attack = self.game.get_skill_level(attacker_skill) == "lv2"
-        else:
-            # 防御回合：根据防御等级反推
-            is_lv2_attack = defender_level == "lv2"
-        
-        # 3. 防御减免（纯逻辑，数值不再硬编码）
-        # lv1防御：减伤50%（基础）或50%（进阶）
-        # lv2防御：减伤100%（基础）或80%（进阶）
-        reduction = 0
-        if defender_level == "lv1":
-            reduction = base_damage * 0.5  # 统一50%减伤
-        elif defender_level == "lv2":
-            reduction = base_damage * (1.0 if not is_lv2_attack else 0.5)  # 基础全减，进阶减50%
-        
-        # 4. 最终伤害（保底1点）
-        damage = max(1, int(base_damage - reduction))
-        
-        # 5. 克制翻倍
-        if is_countered:
-            damage *= 2
-        
-        return damage
-    def damage_take(        # 伤害应用
-            self, is_player: bool, amount: int) -> None:    
-            hp_attr = 'hp1' if is_player else 'hp2'
-            current = getattr(self, hp_attr)
-            setattr(self, hp_attr, max(0, current - amount))
+ 
