@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from FG.main import Game
 from func import say, load_json
-from typing import Dict, Tuple
 from math import ceil
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Tuple,Optional, Any
 
 @dataclass
 class MenuData:   # 菜单状态数据
@@ -35,7 +34,12 @@ class MenuStack:  # 菜单栈，管理菜单状态
         
         # 创建或恢复新状态
         cache_key = f"{menu_type}_{context.get('category', '')}_{context.get('level', '')}" if context else menu_type
-        new_state = self.state_cache.get(cache_key) or MenuData(menu_type, 0, 0, context)
+        new_state = self.state_cache.get(cache_key)
+        if new_state:
+            new_state.context = context
+        else:
+            new_state = MenuData(menu_type,0,0,context)
+        
         
         self.stack.append(new_state)
         return new_state
@@ -114,10 +118,10 @@ class Menu:       # 菜单系统，负责所有用户交互
         if page is None and current_state:
             page = current_state.page
         # 分页
-        page_size = 6
+        page_size = 4
         # 分离 'z' 返回键和其他选项
         main_items = [(k, v) for k, v in options.items() if k != 'z']
-        # 总页数 = 总项数/6 ，向上取整
+        # 总页数 = 总项数/4 ，向上取整
         total_pages = ceil(len(main_items) / page_size)
 
         if page is None:
@@ -136,11 +140,11 @@ class Menu:       # 菜单系统，负责所有用户交互
             valid_keys = [k for k, _ in page_items]
             # 渲染当前页选项
             for key, (name, unlocked, cost) in page_items:
+                # 构建基础status
                 if show_cost:
                     status = f"(未解锁 需{cost}能量)" if not unlocked else f"(消耗{cost}能量)"
                 else:
                     status = ''
-                print(f" [{key}] {name} {status}")
 
                 # 增强对技能的渲染
                 if hasattr(self.game, 'get_skill'):
@@ -315,7 +319,7 @@ class Menu:       # 菜单系统，负责所有用户交互
     def menu_category(self) -> Optional[str]:   # 行动类别菜单，一级子菜单
         current_category = self.get_current_state() # 获取当前类别
         if current_category.menu_type != 'category': # 防御检测
-            return NameError
+            raise NameError
         
         category = current_category.context.get('category','')
         levels = self._get_available_levels(category)
@@ -338,7 +342,6 @@ class Menu:       # 菜单系统，负责所有用户交互
         choice = self._render_menu(options, f"选择{category}技能等级", current_category.page,False)
     
         if choice is None:  # 防御检测
-            print("没有此菜单")
             self.go_back()
             return None
 
@@ -377,7 +380,14 @@ class Menu:       # 菜单系统，负责所有用户交互
         choice = self._render_menu(options, f"选择{category}技能 - {level}", current_level.page)
 
         # 处理技能选择
-        if choice in options and choice != 'z':
+        # if choice == 'z':
+        #     self.go_back()
+        #     return None
+        if choice is None:
+            self.go_back()
+            return None
+        
+        if choice in options :
             # 获取选中的技能名
             skill_name, unlocked, cost = options[choice]
             
@@ -397,10 +407,13 @@ class Menu:       # 菜单系统，负责所有用户交互
                 say(f"技能'{skill_name}'数据异常")
                 return None
             
-            # 选择成功，返回主菜单并返回选择结果
-            self.stack.clear()
-            self.stack.push('main')
-            
+            # # 选择成功，栈为空并直接压入主菜单
+            # self.stack.clear()
+            # self.stack.push('main')
+
+            # 直接重置为初始状态,并情况缓存
+            self.stack.stack = [MenuData('main')]
+            self.stack.state_cache.clear()            
             return skill_name
         return None
 

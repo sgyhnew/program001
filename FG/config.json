@@ -1,5 +1,8 @@
 {
   "combat": {          
+
+  },
+  "attribute":{
     "hp": {               
       "player_initial": 100,   
       "pc_initial": 100,
@@ -7,8 +10,11 @@
       "pc_max": 100
     },
     "energy": {           
-      "player_initial": 20,
-      "pc_max": 50
+      "player_initial": 20
     }
+
+  },
+  "menu":{
+    "PAGE": 3
   }
 }
