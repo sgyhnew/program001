@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from FG.main import Game
-from func import say, load_json
+from func import say
 from math import ceil
 from dataclasses import dataclass
 from typing import Dict, List, Tuple,Optional, Any
