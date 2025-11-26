@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum,auto
 
 class EnergyReason(Enum):   # 能量变化事件
     ROUND = 1         # 每回合开始
@@ -11,6 +11,16 @@ class GamePhase(Enum):      # 游戏阶段
     ACTION_PLAYER =  "玩家行动阶段"
     ACTION_PC =      "对手行动阶段"
     RESOLVE =        "结算阶段"
+class GameMode(Enum):       # 游戏模式
+    ADVENTURE  = '冒险模式'
+    CHANLLENGE = '挑战模式' 
+
+class MenuAction(Enum):     # 行动菜单
+    ATTACK  = auto()
+    SKILL   = auto()
+    DEFENSE = auto()
+    TOOL    = auto() 
+
 
 class SkillLevel(Enum):     # 技能等级
     LV1 = "lv1"
@@ -19,7 +29,6 @@ class SkillLevel(Enum):     # 技能等级
 class PriorityLevel(Enum):  # 优先级
     P1 = 1  # 最高
     P2 = 2
-
 
 BEATS_MAP = {               # 相克关系映射表
     "拳": "剑", 

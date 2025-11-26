@@ -122,6 +122,10 @@ class Combat:  # 战斗系统
         else:
             return self.judge(player_skill_name, pc_skill_name)
 
+    def is_alive(self, is_player):  # 胜负判定 同时为0判玩家为失败
+        return self.attribute.hp1 > 0 if is_player else self.attribute.hp2 > 0
+
+
     def _execute_effect(self, skill_name: str, subject: str):   # 技能效果
         print(subject, end="")
         print(self.game.get_skill(skill_name).effect) 
