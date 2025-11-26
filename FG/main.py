@@ -105,7 +105,7 @@ class Game:
             say("这一击让你气血翻涌！")
         
         # 显示结果
-        print(result.description)
+        say(result.description)
         return True
     
     def main(self): # 主程序入口
@@ -140,8 +140,7 @@ class Game:
                 # 正常返回，继续下一回合
                 continue
 
-            elif menu_result == 'exit':  # 退出
-                say("对方仰天一笑，一个闪身便不知踪影")
+            elif menu_result == '__exit__':  # 退出
                 break
             elif isinstance(menu_result, str):
                 # 攻击技能选择

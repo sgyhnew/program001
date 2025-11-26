@@ -18,6 +18,13 @@ class MenuData:   # 菜单状态数据
     def __repr__(self):
         return f"MenuData(type={self.menu_type}, index={self.select_index}, page={self.page}, context={self.context})"
 
+@dataclass
+class MenuConfig: # 菜单配置
+    title: str | Callable[[Dict], str]  # 标题或其生成函数
+    build_options: Callable[['Menu',Dict], Dict[str,Tuple]] # 构建选项
+    handle_choice: Callable[['Menu',str,Dict],Any]  # 处理选择
+    show_cost: bool = True # 是否显示能量消耗词条
+
 class MenuStack:  # 菜单栈，管理菜单状态
     def __init__(self, game):
         self.game = game
@@ -25,9 +32,7 @@ class MenuStack:  # 菜单栈，管理菜单状态
         self.state_cache: Dict[str, MenuData] = {}  # 菜单状态缓存
 
     def push(self,menu_type: str, context: Dict = None) -> MenuData:   # 入栈
-        # 保存当前状态到缓存
-        # print(f"[DEBUG] 开始push: {menu_type}, 当前栈深度: {len(self.stack)}")
-    
+
         if self.stack:
             current = self.stack[-1]
             self.state_cache[current.menu_type] = current
@@ -74,6 +79,12 @@ class Menu:       # 菜单系统，负责所有用户交互
         self.game = game    # 外部调用
         self.attribute = game.attribute
         self.stack = MenuStack(game)  # 菜单栈
+        self.menus = { # 所有菜单以及其配置
+            'main':     self.menu_main(),
+            'category': self.menu_category(),
+            'level':    self.menu_level(),
+
+        }
     
     def navigate_to(            # 导航到指定菜单
             self, target_menu: str, context: Dict = None) -> bool:  
@@ -111,10 +122,57 @@ class Menu:       # 菜单系统，负责所有用户交互
             self, options: Dict) -> List[str]:   
         return [k for k in options.keys() if k != 'z']
 
+
+    def _build_skill_menu(      # 构建技能菜单选项
+            self, category: str, level: str) -> Dict[str, Tuple[str, bool, int]]: 
+        options: Dict[str, Tuple[str, bool, int]] = {}
+        key_index = ord('a')  # 初始值 = 97 98→'b'
+
+        # 遍历技能缓存，筛选出对应类别的技能
+        for skill_data in self.game._skill_cache.values():
+            
+            if skill_data.category != category or skill_data.level != level:
+                continue
+
+            # 检查能量是否足够解锁该技能
+            current_energy = self.game.attribute.energy_get(True)
+            unlocked = current_energy >= skill_data.cost
+            
+            # 构建 options
+            options[chr(key_index)] = (skill_data.name, unlocked, skill_data.cost)
+            key_index += 1
+        options['z'] = (None, True, 0)  # 返回选项
+        return options
+ 
+    def _get_available_levels(  # 获取指定类别的level
+            self, category: str) -> List[str]:    
+        levels = set()  # 集合
+        for skill_data in self.game._skill_cache.values():
+            if skill_data.category == category:
+                levels.add(skill_data.level)
+        levels = sorted(levels) # 转化为有序列表
+        return levels
+    
+    def debug_state(self):
+        """调试状态信息"""
+        print(f"\n=== 菜单状态调试 ===")
+        print(f"栈深度: {len(self.stack.stack)}")
+        for i, state in enumerate(self.stack.stack):
+            print(f"  {i}: {state}")
+        current = self.get_current_state()
+        print(f"当前菜单: {current.menu_type if current else 'None'}")
+        print(f"是否根菜单: {self.stack.is_root()}")
+    
     def _render_menu(           # 分页，渲染菜单，复用
-            self, options: Dict[str, Tuple[str, bool, int]], title: str,page: int = 0, show_cost: bool = True) -> str: 
+            self, options: Dict[str, Tuple[str, bool, int]],
+            title: str,
+            menu_type: str,
+            page: int = 0,
+            show_cost: bool = True
+            ) -> str: 
         #options: {key: (name, unlocked, cost)}
         current_state = self.get_current_state()
+
         if page is None and current_state:
             page = current_state.page
         # 分页
@@ -170,7 +228,8 @@ class Menu:       # 菜单系统，负责所有用户交互
                 controls.append(" [l] 上一页")
             if page < total_pages - 1:
                 controls.append(" [r] 下一页")
-            controls.append(" [z] 返回上级")
+            if menu_type != 'main':          
+              controls.append(" [z] 返回")
             
             print("".join(controls))
             print(f" 第 {page + 1}/{total_pages} 页")
@@ -192,228 +251,169 @@ class Menu:       # 菜单系统，负责所有用户交互
             valid_keys = [k for k, _ in page_items] # 当前页有效键列表
             if choice in valid_keys:
                 name, unlocked, cost = options[choice]
-                
                 if not unlocked:
                     say(f"对方摇了摇头：'阁下功力尚浅，尚未领悟此招（需{cost}能量）。'")
-                    continue  # 保持在当前页
+                    continue
                 
                 if self.game.attribute.energy_get(True) < cost:
                     say(f"能量不足{cost}点，无法施展此招！")
-                    continue  # 保持在当前页
-                
+                    continue
                 return choice  # 返回选项键
             
             # 无效输入
             say("该招式未习得，你思虑再三决定重新出招。")
             # 继续循环，保持在当前页
 
-    def _build_skill_menu(      # 构建技能菜单选项
-            self, category: str, level: str) -> Dict[str, Tuple[str, bool, int]]: 
-        options: Dict[str, Tuple[str, bool, int]] = {}
-        key_index = ord('a')  # 初始值 = 97 98→'b'
-
-        # 遍历技能缓存，筛选出对应类别的技能
-        for skill_data in self.game._skill_cache.values():
-            
-            if skill_data.category != category or skill_data.level != level:
-                continue
-
-            # 检查能量是否足够解锁该技能
-            current_energy = self.game.attribute.energy_get(True)
-            unlocked = current_energy >= skill_data.cost
-            
-            # 构建 options
-            options[chr(key_index)] = (skill_data.name, unlocked, skill_data.cost)
-            key_index += 1
-        options['z'] = (None, True, 0)  # 返回上级选项
-        return options
- 
-    def _get_available_levels(  # 获取指定类别的level
-            self, category: str) -> List[str]:    
-        levels = set()  # 集合
-        for skill_data in self.game._skill_cache.values():
-            if skill_data.category == category:
-                levels.add(skill_data.level)
-        levels = sorted(levels) # 转化为有序列表
-        return levels
+    def _run_menu(self, menu_type: str, context: dict = None) -> Any:   # 通用菜单处理器
+        current_state=self.get_current_state()  # 获取当前状态
+        if current_state.menu_type != menu_type:
+            raise NameError(f"菜单类型不匹配：期望 {menu_type}，实际 {current_state.menu_type}")
     
-    def debug_state(self):
-        """调试状态信息"""
-        print(f"\n=== 菜单状态调试 ===")
-        print(f"栈深度: {len(self.stack.stack)}")
-        for i, state in enumerate(self.stack.stack):
-            print(f"  {i}: {state}")
-        current = self.get_current_state()
-        print(f"当前菜单: {current.menu_type if current else 'None'}")
-        print(f"是否根菜单: {self.stack.is_root()}")
+        config = self.menus[menu_type]
+        # 构建选项
+        options = config.build_options(self,context)    # 闭包函数build_options
 
-    def run(self) -> Any:   # 运行Menu
+        # 渲染并获得选择 (复原render)
+        choice = self._render_menu(
+            options,
+            config.title(context) if callable(config.title) else config.title,
+            menu_type,
+            current_state.page,
+            config.show_cost
+            )
+        
+        # 处理选择
+        result = config.handle_choice(self,choice,context)  # 闭包函数handle_choice
+
+        return result
+
+    def run(self) -> Any:
         if not self.get_current_state():
             self.stack.clear()
-            self.stack.push('main')
-    
-        while True:
+            self.stack.push('main')     
+
+        while 1:
             current_state = self.get_current_state()
-
-            # case1：当前没有菜单
             if not current_state:
-                self.stack.clear()
-                self.stack.push('main')
-                current_state = self.get_current_state()
                 break
-            result = None
 
-            # case2：正常启动菜单
-            menu_type = current_state.menu_type
-            result = None
+            # 统一调用_run处理器
+            result = self._run_menu(current_state.menu_type,current_state.context)
 
-            if menu_type == 'main':
-                result = self.menu_main()
-            elif menu_type == 'category':
-                result = self.menu_category()
-            elif menu_type == 'level':
-                result = self.menu_level()
-
-            # case3：特殊结果
-            if isinstance(result, str) and "对方显然很有侠客精神" in result:
-                say(result)
+            if result == '__navigate__': # 继续循环，自动获取新状态
+                continue  
+        
+            if result == '__continue__': # 停留在当前菜单
+                continue  
+            
+            if result == '__back__':     # 返回上级
+                self.go_back()  
                 continue
-            elif isinstance(result, str) and "对方仰天一笑" in result:
-                return 'escape'
+            if result == '__exit__':     # 退出
+                return result
+
             if result is not None:
                 return result
-    
-    def menu_main(self)-> Optional[str]:        # 主菜单
-        current_state = self.get_current_state()
-        if current_state.menu_type != 'main':
-            return None
-        while 1:
-            print("\n【回合开始】你略加思索,决定:")
-            print("  [a] 攻击")
-            print("  [b] 防御")
-            print("  [h] 帮助")
-            if self.stack.is_root():
-                print("  [q] 逃跑") # 栈底
+    def menu_main(self)-> MenuConfig:        # 主菜单
+        def build_options(menu,ctx):
+            options = {
+                'a': ('攻击', True, 0),
+                'b': ('防御', True, 0),
+                'h': ('帮助', True, 0),
+            }                
+            if menu.stack.is_root():
+                options['q'] = ('逃跑',True,0)
             else:
-                print("  [z] 返回上级")
-            choice = input(">>> ").strip().lower()
-
+                options['z'] = ('返回',True,0)
+            return options
+        def handle_choice(menu,choice,ctx):
             if choice == 'a':
-                self.navigate_to('category', {'category': 'attack'})
-                return None
+                menu.navigate_to('category',{'category':'attack'})
+                return '__navigate__'   # 进入下级后立即返回，run处理
             elif choice == 'b':
-                self.navigate_to('category', {'category': 'defense'})
-                return None
+                menu.navigate_to('category', {'category': 'defense'})
+                return '__navigate__'
             elif choice == 'h':
-                # 帮助菜单实现
                 say("对方显然很有侠客精神，叮嘱你拳可剑、剑可刀、刀可枪、枪可拳，随着招式的熟练可以释放更具威力的招式。")
-                return None
-            elif choice == 'z' and not self.stack.is_root():
-                self.go_back()
-                return None
-            elif choice == 'q' and self.stack.is_root():
-                return 'exit'  # 返回退出标识
-            else:
-                say("无效的选择，请重新输入。")
-
-    def menu_category(self) -> Optional[str]:   # 行动类别菜单，一级子菜单
-        current_category = self.get_current_state() # 获取当前类别
-        if current_category.menu_type != 'category': # 防御检测
-            raise NameError
-        
-        category = current_category.context.get('category','')
-        levels = self._get_available_levels(category)
-        if not levels:  # 防御检测
-            print(f"当前没有可用的{category}技能")
-            self.go_back() 
-            return None
-        
-        options = {}
-        key_index = ord('a') # 97+
-        for level in levels:
-            # 统计该等级下的技能数量
-            skill_count = sum(1 for skill in self.game._skill_cache.values() 
-                            if skill.category == category and skill.level == level)
-            options[chr(key_index)] = (f"{level}级技能 ({skill_count}种)", True, 0)
-            key_index += 1
-        options['z'] = ("返回上级", True, 0)
-
-        # 显示菜单,并分页
-        choice = self._render_menu(options, f"选择{category}技能等级", current_category.page,False)
-    
-        if choice is None:  # 防御检测
-            self.go_back()
-            return None
-
-        # 更新状态
-        self._update_state_selection(choice,options)
-
-        if choice == 'z':
-            self.go_back()
-            return None
-            # 进入等级菜单
-
-        if choice in options and choice != 'z':
-            level_index = ord(choice) - ord('a')
-            if level_index < len(levels):
-                selected_level = levels[level_index]
-                self.navigate_to('level', {
-                    'category': category,
-                    'level': selected_level
-                })
-
-        return None
-    
-    def menu_level(self) -> Optional[str]:      # 等级菜单，二级子菜单
-        current_level = self.get_current_state() # 获取当前类别
-        if current_level.menu_type != 'level': # 防御检测
-            return NameError
-        category = current_level.context.get('category', '')
-        level = current_level.context.get('level', '')
-        options = self._build_skill_menu(category, level)
-        skill_options = {k: v for k, v in options.items() if k != 'z'}
-        if not skill_options:   # 防御检测
-            print(f"在{category}的{level}等级中没有可用技能")
-            self.go_back()
-            return None
-        
-        choice = self._render_menu(options, f"选择{category}技能 - {level}", current_level.page)
-
-        # 处理技能选择
-        # if choice == 'z':
-        #     self.go_back()
-        #     return None
-        if choice is None:
-            self.go_back()
-            return None
-        
-        if choice in options :
-            # 获取选中的技能名
-            skill_name, unlocked, cost = options[choice]
+                return '__continue__'
+            elif choice == 'q' and menu.stack.is_root():
+                say("对方仰天一笑，一个闪身便不知踪影。")
+                return '__exit__'
+            return '__continue__'
+        return MenuConfig(
+            title='【回合开始】你略加思索，决定：',
+            build_options = build_options,
+            handle_choice = handle_choice,
+            show_cost = False
+        )
+    def menu_category(self) -> MenuConfig:   # 行动类别菜单，一级子菜单
+        def build_options(menu,ctx):
+            category = ctx.get('category','')
+            levels = menu._get_available_levels(category)
+            options = {}
+            for i,level in enumerate(levels):
+                key = chr(ord('a')+i)
+                count = sum(1 for s in menu.game._skill_cache.values() if s.category == category and s.level == level)
+                options[key] = (f"{level}级技能 ({count}种)", True, 0)
+            options['z'] = ('返回',True,0)
+            return options
+        def handle_choice(menu,choice,ctx):
+            if choice is None: # 按z返回
+                return '__back__'
             
-            # 验证解锁状态和能量
-            if not unlocked:
-                say(f"技能'{skill_name}'尚未解锁，需要{cost}能量")
-                return None
+            options = menu.menus['category'].build_options(menu, ctx)
+            if choice in options and choice != 'z':
+                level_index = ord(choice) - ord('a')
+                category = ctx.get('category', '')
+                levels = menu._get_available_levels(category)
+                if level_index < len(levels):
+                    selected_level = levels[level_index]
+                    menu.navigate_to('level', {
+                        'category': category,
+                        'level': selected_level
+                    })
+                    return '__navigate__'
+            return '__continue__'
+        return MenuConfig(
+            title=lambda ctx: f"选择{ctx.get('category','')}技能等级",
+            build_options = build_options,
+            handle_choice = handle_choice,
+            show_cost = False
+        )
+    def menu_level(self) -> MenuConfig:      # 等级菜单，二级子菜单
+        def build_options(menu, ctx):
+            return menu._build_skill_menu(
+                ctx.get('category', ''), 
+                ctx.get('level', '')
+            )
+        
+        def handle_choice(menu, choice, ctx):
+            if choice is None:  # 用户按 z 返回
+                return '__back__'
+            
+            options = menu.menus['level'].build_options(menu, ctx)
+            if choice in options and choice != 'z':
+                skill_name, unlocked, cost = options[choice]
                 
-            if self.attribute.energy_get(True) < cost:
-                say(f"能量不足{cost}点，无法施展{skill_name}！")
-                return None
+                if not unlocked:
+                    say(f"技能'{skill_name}'尚未解锁...")
+                    return '__continue__'
+                
+                if menu.attribute.energy_get(True) < cost:
+                    say(f"能量不足{cost}点...")
+                    return '__continue__'
+                
+                # 选择成功，清空栈并返回技能名
+                menu.stack.clear()
+                menu.stack.push('main')
+                return skill_name
             
-            # 获取完整的技能数据
-            try:
-                skill_data = self.game.get_skill(skill_name)
-            except KeyError:
-                say(f"技能'{skill_name}'数据异常")
-                return None
-            
-            # # 选择成功，栈为空并直接压入主菜单
-            # self.stack.clear()
-            # self.stack.push('main')
-
-            # 直接重置为初始状态,并情况缓存
-            self.stack.stack = [MenuData('main')]
-            self.stack.state_cache.clear()            
-            return skill_name
-        return None
+            return '__continue__'
+        
+        return MenuConfig(
+            title=lambda ctx: f"选择{ctx.get('category', '')}技能 - {ctx.get('level', '')}",
+            build_options=build_options,
+            handle_choice=handle_choice,
+            show_cost=True
+        )
 
