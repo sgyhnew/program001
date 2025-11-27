@@ -108,7 +108,7 @@ class Game:
         say(result.description)
         return True
     
-    def main(self): # 主程序入口
+    def main(self): # 主程序入口,回合外的、宏观的 交互战斗流程
         while 1:
             # 回合开始时检查胜负
             if not self.is_alive(True):
@@ -150,8 +150,8 @@ class Game:
                     cost = skill_data.cost
                     
                     # 检查能量是否足够
-                    if self.attribute.energy_get(True) >= cost:
-                        self.attribute.energy_do(True, -cost)
+                    if self.attribute.mp_get(True) >= cost:
+                        self.attribute.mp_do(True, -cost)
                         self.fight(skill_name)
                     else:
                         say(f"能量不足{cost}点，无法施展{skill_name}！")
@@ -168,8 +168,8 @@ class Game:
                     cost = skill_data.cost
                     
                     # 检查能量是否足够
-                    if self.attribute.energy_get(True) >= cost:
-                        self.attribute.energy_do(True, -cost)
+                    if self.attribute.mp_get(True) >= cost:
+                        self.attribute.mp_do(True, -cost)
                         self.attribute.defense_level = defense_level
                         self.fight("")  # 防御回合
                     else:

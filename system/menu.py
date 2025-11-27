@@ -129,8 +129,8 @@ class Menu:       # 菜单系统，负责所有用户交互
                 continue
 
             # 检查能量是否足够解锁该技能
-            current_energy = self.game.attribute.energy_get(True)
-            unlocked = current_energy >= skill_data.cost
+            current_mp = self.game.attribute.mp_get(True)
+            unlocked = current_mp >= skill_data.cost
             
             # 构建 options
             options[chr(key_index)] = (skill_data.name, unlocked, skill_data.cost)
@@ -250,7 +250,7 @@ class Menu:       # 菜单系统，负责所有用户交互
                     say(f"对方摇了摇头：'阁下功力尚浅，尚未领悟此招（需{cost}能量）。'")
                     continue
                 
-                if self.game.attribute.energy_get(True) < cost:
+                if self.game.attribute.mp_get(True) < cost:
                     say(f"能量不足{cost}点，无法施展此招！")
                     continue
                 return choice  # 返回选项键
@@ -429,7 +429,7 @@ class Menu:       # 菜单系统，负责所有用户交互
                     say(f"技能'{skill_name}'尚未解锁...")
                     return '__continue__'
                 
-                if menu.attribute.energy_get(True) < cost:
+                if menu.attribute.mp_get(True) < cost:
                     say(f"能量不足{cost}点...")
                     return '__continue__'
                 

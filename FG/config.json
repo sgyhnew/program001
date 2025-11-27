@@ -9,7 +9,7 @@
       "player_max": 100,
       "pc_max": 100
     },
-    "energy": {           
+    "mp": {           
       "player_initial": 20
     }
 

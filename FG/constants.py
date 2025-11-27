@@ -1,10 +1,10 @@
 from enum import Enum,auto
 
-class EnergyReason(Enum):   # 能量变化事件
-    ROUND = 1         # 每回合开始
-    COMBAT_WIN = 3    # 胜利
-    COMBAT_DRAW = 1   # 平局
-    DEFENSE_TURN = 2  # 防御回合
+class GameResult(Enum):     # 游戏结果名词
+    ROUND = "round_start"          # 每回合开始
+    COMBAT_WIN = "combat_victory"  # 胜利
+    COMBAT_DRAW = "combat_draw"    # 平局
+    DEFENSE_TURN = "defense_turn"  # 防御回合
 
 class GamePhase(Enum):      # 游戏阶段
     PREPARE =        "准备阶段"    
