@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
+from socket import SIO_KEEPALIVE_VALS
 import sys
 sys.path.insert(0, r'D:/e/myprogram/Program/my/program001_FG') 
 from constants import *
 from constants import PriorityLevel as PL
 from func import say, load_json
 
+from abc import ABC
 import random
 from time import sleep
 import json
@@ -16,32 +18,89 @@ from system.attribute import Attribute
 from system.menu import Menu
 from system.combat import Combat
 
-@dataclass(frozen=True)  # frozen让对象不可变，可被缓存
-class SkillData:    # 技能数据结构
+# @dataclass(frozen=True)  # frozen让对象不可变，可被缓存
+# class SkillData:    # 技能数据结构
+#     category: str       # 行动类别
+#     level: str          # 等级
+#     name: str           # 技能名称
+
+#     cost: int            # 消耗
+    
+#     priority: int        # 优先级等级
+#     effect: str          # 效果，暂时为输出文本，后期可扩展为其他函数
+#     priority_level: PL = PL.P2 # 优先级阶级
+
+#     damage: int = 0     # 伤害
+#     cooldown: int = 0   # 冷却
+#     type: str  ="其他"  # 技能类型
+
+#     def __post_init__(self):     # 数据完整性检查，只警告不报错
+#         if self.category == "attack":
+#             if self.damage == 0:
+#                 print(f"警告: 攻击技能 '{self.name}' 缺少伤害值")
+#             if not self.type:
+#                 print(f"警告: 攻击技能 '{self.name}' 缺少type字段")
+#         if self.priority_level is None:
+#             print(f"警告: 技能 '{self.name}' 缺少priority_level字段")
+#         if self.effect is None:
+#             print(f"警告: 技能 '{self.name}' 缺少effect函数")
+@dataclass
+class SkillData(ABC):    # 通用技能属性
+    name: str           # 技能名
     category: str       # 行动类别
-    level: str          # 等级
-    name: str           # 技能名称
+    level: str          # 等级 
 
-    cost: int            # 消耗
-    priority_level: Enum # 优先级阶级
-    priority: int        # 优先级等级
-    effect: str          # 效果，暂时为输出文本，后期可扩展为其他函数
+    cost: int = 0                            # 消耗
+    cooldown: int =0                         # 冷却
+    priority_level: PL = PL.P2               # 优先位阶
+    priority: int=3                          # 优先级
+    effect: str | Callable = '此招式没有效果' # 效果
+    
+    @classmethod
+    def _base_data(cls, data: Dict[str,Any]) -> Dict[str,Any]:    # 可复用，公开的
+        # 处理优先级等级转换
+        priority_level_str = data.get('priority_level', 'P2')
+        try:
+            priority_level = PL[priority_level_str]
+        except KeyError:
+            priority_level = PL.P2
+        return {    # 创建字典，传递时不传对象，方便cls继承
+            'name': data['name'],
+            'category': data['category'],
+            'level': data['level'],
+            'cost': data.get('cost', 0),
+            'priority_level': priority_level,
+            'priority': data.get('priority', 2),
+            'effect': data.get('effect', ''),
+            'cooldown': data.get('cooldown', 0)
+        }
+    @classmethod
+    def from_dict(cls, data: Dict[str,Any]) -> 'SkillData':   # 父类的基础字典
+        base_data = cls._base_data(data)    
+        return cls(**base_data)  # 返回解包对象
+@dataclass
+class AttackSkill(SkillData):   # 攻击技能
+    damage: int = 0      # 伤害
+    type:   str ='其他'  # 类型
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'AttackSkill':
+        base_data = cls._base_data(data)
+        return cls(
+            **base_data,
+            damage = data.get('damage',0),
+            type = data.get('type','其他')
+        )
+@dataclass
+class DefenseSkill(SkillData):  # 防御技能
+    defense_round: int = 1  # 生效回合数
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DefenseSkill':
+        base_data = cls._base_data(data)
+        return cls(
+            **base_data,
+            defense_round = data.get('defense_round',1)
+        )
 
-    damage: int = 0     # 伤害
-    cooldown: int = 0   # 冷却
-    type: str  ="其他"  # 技能类型
-
-
-    def __post_init__(self):     # 数据完整性检查，只警告不报错
-        if self.category == "attack":
-            if self.damage == 0:
-                print(f"警告: 攻击技能 '{self.name}' 缺少伤害值")
-            if not self.type:
-                print(f"警告: 攻击技能 '{self.name}' 缺少type字段")
-        if self.priority_level is None:
-            print(f"警告: 技能 '{self.name}' 缺少priority_level字段")
-        if self.effect is None:
-            print(f"警告: 技能 '{self.name}' 缺少effect函数")
 class Game:
     __slots__ = (
         'menu','attribute','combat',  # 外部类的调用
@@ -68,27 +127,25 @@ class Game:
                     yield category, level, name, data
     def _build_skill(self) -> None:                                                # 使用遍历结果构建技能缓存
         self._skill_cache.clear()
+        SKILL_MAP = {
+            'attack' : AttackSkill,
+            'defense': DefenseSkill
+        }
         for category, level, name, data in self._traverse_skill():
             p_level_str = data.get("priority_level", "P2")
             p_level = PL[p_level_str]  # "P2" -> PriorityLevel.P2
-            self._skill_cache[name] = SkillData(
-                category=category,
-                level=level,
-                name=name,
-                cost=data.get("cost", 0),
-                priority_level=p_level,
-                priority=data.get("priority", 2),
-                effect=data.get("effect", "招式效果缺失！"),
-                damage=data.get("damage", 0),
-                cooldown=data.get("cooldown", 0),  # 新增
-                type=data.get("type", "其他")
-        )
+            skill_category = SKILL_MAP.get(category,SkillData)
+            skills = {
+                **data,
+                'name'     : name,
+                'category' : category,
+                'level'    : level
+            }
+            self._skill_cache[name] = skill_category.from_dict(skills)
 
     @lru_cache(maxsize=64)  # 缓存查询结果，提升性能
     def get_skill(self, skill_name: str) -> SkillData:      # 查询技能元数据
-        """统一查询入口：一次查找，返回完整对象"""
         if skill_name not in self._skill_cache:
-            # 提供友好提示，甚至可动态加载新技能
             raise KeyError(f"技能 '{skill_name}' 未定义，请检查 skill.json")
         return self._skill_cache[skill_name]
 

@@ -26,10 +26,8 @@ class CombatContext:     # 战斗执行上下文
     skip_damage: bool = False      # 是否跳过伤害结算
     player_damage: int = 0         # 玩家已受伤害值
     pc_damage: int = 0             # PC已受伤害值
-    # result_log: list[str] = None
+    # result_log: list[str] = None   # 日志
 
-    # def __post_init__(self):
-    #     self.result_log = []
 @dataclass
 class PhaseContext:      # 阶段回合上下文
     player_input:  str | None
@@ -45,12 +43,12 @@ class Combat:  # 战斗系统
         self.attribute = game.attribute
     
     def _phase_prepare(self, context: PhaseContext):        # 准备阶段
-        say(f"【{GP.PREPARE.value}】",ANIMATION_SPEED)
+        say(f"【{GP.PREPARE.value}】",SAY_SPEED)
         self.attribute.mp_do(True, GR.ROUND)
         self.attribute.mp_do(False, GR.ROUND)
         return None
     def _phase_player_action(self, context: PhaseContext):  # 玩家行动阶段
-        say(f"【{GP.ACTION_PLAYER.value}】",ANIMATION_SPEED)
+        say(f"【{GP.ACTION_PLAYER.value}】",SAY_SPEED)
 
         # case1: 防御选择
         if context.defense_level:
@@ -60,12 +58,12 @@ class Combat:  # 战斗系统
             self._execute_effect(context.player_input, "你")
             context.player_skill = context.player_input
     def _phase_pc_action(self, context: PhaseContext):      # 对手行动阶段
-        say(f"【{GP.ACTION_PC.value}】",ANIMATION_SPEED)
+        say(f"【{GP.ACTION_PC.value}】",SAY_SPEED)
 
         context.pc_skill = self._choose_pc_skill()
         self._execute_effect(context.pc_skill, "对手")
     def _phase_resolve(self,context: PhaseContext):         # 结算阶段
-        say(f"【{GP.RESOLVE.value}】",ANIMATION_SPEED)
+        say(f"【{GP.RESOLVE.value}】",SAY_SPEED)
 
         # case1: 防御选择
         if context.defense_level:
@@ -87,14 +85,14 @@ class Combat:  # 战斗系统
     def _execute_effect(self, skill_name: str, subject: str):   # 技能效果
         print(subject, end="")
         print(self.game.get_skill(skill_name).effect) 
-        sleep(0.1 * ANIMATION_SPEED)
+        sleep(0.1 * SAY_SPEED)
 
     def _execute_defense(self, defense_level: str):             # 防御效果
         name = f"{defense_level}防御".replace("lv1", "基础").replace("lv2", "进阶")
         print("你", end="")
         print(self.game.get_skill(name).effect) 
         self.attribute.mp_do(True, GR.DEFENSE_TURN)
-        sleep(0.1 * ANIMATION_SPEED)
+        sleep(0.1 * SAY_SPEED)
 
     def _build_defense_result(self, damage: int) -> CombatData: # 防御结果构建
         names = {'lv1': '基础防御', 'lv2': '进阶防御'}
@@ -142,19 +140,19 @@ class Combat:  # 战斗系统
         # 后续可扩展为 effect(context)
         
         # 记录日志
-        context.result_log.append(f"[{'玩家' if owner == 'player' else '对手'}] {skill.name}")
+        # context.result_log.append(f"[{'玩家' if owner == 'player' else '对手'}] {skill.name}")
         
         # 根据技能类型影响上下文
         if skill.category == "defense":
             # 防御效果：标记跳过伤害
             context.skip_damage = True
-            context.result_log.append(" → 防御姿态生效")
-        elif skill.category == "attack":
-            # 攻击效果：如果已标记防御，记录被格挡
-            if context.skip_damage:
-                context.result_log.append(" → 攻击被防御格挡")
-            else:
-                context.result_log.append(" → 攻击准备就绪")
+            # context.result_log.append(" → 防御姿态生效")
+        # elif skill.category == "attack":
+        #     # 攻击效果：如果已标记防御，记录被格挡
+        #     if context.skip_damage:
+        #         context.result_log.append(" → 攻击被防御格挡")
+        #     else:
+        #         context.result_log.append(" → 攻击准备就绪")
 
     def damage_do(self, context: CombatContext):    # 战斗中伤害的计算和应用
         """根据上下文计算最终伤害"""
@@ -259,7 +257,7 @@ class Combat:  # 战斗系统
         
         desc = f"{result_text}{defense_info} (你受到{context.player_damage}点伤害，对方受到{context.pc_damage}点伤害)"
         
-        # 调试日志（可注释）
+        # # 调试日志
         # print("\n[优先级执行日志]", " → ".join(context.result_log))
         
         return CombatData(context.player_damage, context.pc_damage, desc)
