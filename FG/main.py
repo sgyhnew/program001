@@ -1,49 +1,20 @@
 # -*- coding: utf-8 -*-
-from socket import SIO_KEEPALIVE_VALS
 import sys
-sys.path.insert(0, r'D:/e/myprogram/Program/my/program001_FG') 
+from pathlib import Path
+current_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(current_dir))
+from abc import ABC
+from functools import lru_cache
+from typing import Dict, Any, Callable, Iterator, Tuple
+from dataclasses import dataclass
+from system.attribute import Attribute
+from system.menu import Menu
+from system.combat import Combat
+from system.logger import Gamelogger
 from constants import *
 from constants import PriorityLevel as PL
 from func import say, load_json
 
-from abc import ABC
-import random
-from time import sleep
-import json
-from functools import lru_cache
-from typing import Dict, Any, Callable, Iterator, Tuple
-from dataclasses import dataclass
-
-from system.attribute import Attribute
-from system.menu import Menu
-from system.combat import Combat
-
-# @dataclass(frozen=True)  # frozen让对象不可变，可被缓存
-# class SkillData:    # 技能数据结构
-#     category: str       # 行动类别
-#     level: str          # 等级
-#     name: str           # 技能名称
-
-#     cost: int            # 消耗
-    
-#     priority: int        # 优先级等级
-#     effect: str          # 效果，暂时为输出文本，后期可扩展为其他函数
-#     priority_level: PL = PL.P2 # 优先级阶级
-
-#     damage: int = 0     # 伤害
-#     cooldown: int = 0   # 冷却
-#     type: str  ="其他"  # 技能类型
-
-#     def __post_init__(self):     # 数据完整性检查，只警告不报错
-#         if self.category == "attack":
-#             if self.damage == 0:
-#                 print(f"警告: 攻击技能 '{self.name}' 缺少伤害值")
-#             if not self.type:
-#                 print(f"警告: 攻击技能 '{self.name}' 缺少type字段")
-#         if self.priority_level is None:
-#             print(f"警告: 技能 '{self.name}' 缺少priority_level字段")
-#         if self.effect is None:
-#             print(f"警告: 技能 '{self.name}' 缺少effect函数")
 @dataclass
 class SkillData(ABC):    # 通用技能属性
     name: str           # 技能名
@@ -58,7 +29,7 @@ class SkillData(ABC):    # 通用技能属性
     
     @classmethod
     def _base_data(cls, data: Dict[str,Any]) -> Dict[str,Any]:    # 可复用，公开的
-        # 处理优先级等级转换
+        # 处理优先位阶转换
         priority_level_str = data.get('priority_level', 'P2')
         try:
             priority_level = PL[priority_level_str]
@@ -92,7 +63,8 @@ class AttackSkill(SkillData):   # 攻击技能
         )
 @dataclass
 class DefenseSkill(SkillData):  # 防御技能
-    defense_round: int = 1  # 生效回合数
+    defense_round: int = 1    # 生效回合数
+    damage_reduction: int = 0 # 伤害减免
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'DefenseSkill':
         base_data = cls._base_data(data)
@@ -103,21 +75,23 @@ class DefenseSkill(SkillData):  # 防御技能
 
 class Game:
     __slots__ = (
-        'menu','attribute','combat',  # 外部类的调用
+        'menu','attribute','combat','logger',  # 外部类的调用
         'count','beats',              # 战斗相关变量
         'skill','action',             # 动作,为日后其他版本迭代做准备
         '_skill_cache'                # 技能缓存，便于使用和查询
     )   
     def __init__(self): # 变量的声明和方法的使用
-        self.skill = load_json('data/skill.json')
-        self.beats = BEATS_MAP
-        self.count = 0
-
         self.attribute = Attribute(self)
         self.menu = Menu(self)
         self.combat = Combat(self)
+        self.logger = Gamelogger(log_dir='logs')
+        self.skill = load_json('data/skill.json')
+        self.beats = BEATS_MAP
+        self.count = 0
         self._skill_cache: Dict[str, SkillData]= {}  #{name: SkillData}
-        self._build_skill()   # 返回值为_skill_cache
+
+        self.logger.info("战斗系统初始化完成")  # 初始化
+        self._build_skill()   # 构建skill数据缓存
 
     def _traverse_skill(self) -> Iterator[Tuple[str, str, str, Dict[str, Any]]]:   # 生成器迭代遍历
         """生成器：遍历技能树，产出(类别, 等级, 技能名, 数据字典)"""
@@ -132,8 +106,6 @@ class Game:
             'defense': DefenseSkill
         }
         for category, level, name, data in self._traverse_skill():
-            p_level_str = data.get("priority_level", "P2")
-            p_level = PL[p_level_str]  # "P2" -> PriorityLevel.P2
             skill_category = SKILL_MAP.get(category,SkillData)
             skills = {
                 **data,

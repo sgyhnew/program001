@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
+from logging import Logger
 from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from FG.main import Game,SkillData
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 import random
 from time import sleep
 
@@ -13,6 +14,7 @@ from FG.constants import GameResult as GR
 from FG.constants import GamePhase as GP
 from func import say
 from system.attribute import Attribute,MpConfig
+from system.logger import Gamelogger
 
 @dataclass
 class CombatData:        # 战斗结果数据类
@@ -26,7 +28,6 @@ class CombatContext:     # 战斗执行上下文
     skip_damage: bool = False      # 是否跳过伤害结算
     player_damage: int = 0         # 玩家已受伤害值
     pc_damage: int = 0             # PC已受伤害值
-    # result_log: list[str] = None   # 日志
 
 @dataclass
 class PhaseContext:      # 阶段回合上下文
@@ -41,23 +42,31 @@ class Combat:  # 战斗系统
     def __init__(self, game: Game):
         self.game = game
         self.attribute = game.attribute
+        self.logger = Gamelogger()
     
     def _phase_prepare(self, context: PhaseContext):        # 准备阶段
+        self.logger.gamerun(f"第{self.game.count}回合准备阶段")
         say(f"【{GP.PREPARE.value}】",SAY_SPEED)
+
+        self.logger.gamerun(f"玩家MP +{GR.ROUND}, PC MP +{GR.ROUND}")
         self.attribute.mp_do(True, GR.ROUND)
         self.attribute.mp_do(False, GR.ROUND)
         return None
     def _phase_player_action(self, context: PhaseContext):  # 玩家行动阶段
+        self.logger.debug(f"玩家行动阶段: input={context.player_input}, defense={context.defense_level}")
         say(f"【{GP.ACTION_PLAYER.value}】",SAY_SPEED)
 
         # case1: 防御选择
         if context.defense_level:
             context.player_skill = None
+            self.logger.info(f"玩家选择防御: {context.defense_level}")
         # case2: 攻击选择
         if context.player_input:
             self._execute_effect(context.player_input, "你")
             context.player_skill = context.player_input
+            self.logger.info(f"玩家使用技能: {context.player_input}")
     def _phase_pc_action(self, context: PhaseContext):      # 对手行动阶段
+        self.logger.gamerun("PC行动阶段")
         say(f"【{GP.ACTION_PC.value}】",SAY_SPEED)
 
         context.pc_skill = self._choose_pc_skill()
@@ -80,7 +89,6 @@ class Combat:  # 战斗系统
 
     def is_alive(self, is_player):  # 胜负判定 同时为0判玩家为失败
         return self.attribute.hp1 > 0 if is_player else self.attribute.hp2 > 0
-
 
     def _execute_effect(self, skill_name: str, subject: str):   # 技能效果
         print(subject, end="")

@@ -58,14 +58,16 @@
             "基础防御": {
                 "cost": 0,"cooldown": 0,"priority_level": "P2","priority": 2,
                 "effect": "气沉丹田，运转自身内力，可减少少量伤害。",
-                "defense_round": 1
+                "defense_round": 1,
+                "damage_reduction": 5
             }
         },
         "lv2": {
             "进阶防御": {
                 "cost": 5,"cooldown": 0,"priority_level": "P2","priority": 2,
                 "effect": "吐纳间蕴含天地之力，似乎没有事物可以伤害自身一毫了。",
-                "defense_round": 1
+                "defense_round": 1,
+                "damage_reduction": 15
             }
         }
     }
