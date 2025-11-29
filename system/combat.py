@@ -78,16 +78,16 @@ class Combat:  # 战斗系统
         # case1: 防御选择
         if context.defense_skill:
             damage = self.damage_calculate(
-                attack_skill_name=context.pc_skill,    # PC攻击
-                defender_skill=context.defense_skill,  # 防御技能
-                is_countered=False                     # 防御回合无克制
+                context.pc_skill,    # PC攻击
+                context.defense_skill,  # 防御技能
+                False                     # 防御回合无克制
         )
             self.game.attribute.damage_take(True, damage)
             context.combat_data = self._build_defense_result(context.defense_skill,damage)
         # case2：攻击选择
         else:
             context.combat_data = self.judge(context.player_skill, context.pc_skill)
-
+        print(f"\n[战斗结果] {context.combat_data.description}")
     def is_alive(self, is_player):  # 胜负判定 同时为0判玩家为失败
         return self.attribute.hp1 > 0 if is_player else self.attribute.hp2 > 0
 
@@ -206,7 +206,6 @@ class Combat:  # 战斗系统
     
     def _build_priority_result(self, context: CombatContext) -> CombatData:  # 优先级结果构建
         """根据上下文构建最终结果"""
-        desc = "战斗结束"
         # 判断胜负（基于是否被防御和伤害值）
         if context.skip_damage:
             result_type = "defense"
@@ -239,18 +238,20 @@ class Combat:  # 战斗系统
             self.attribute.mp_do(False, GR.COMBAT_WIN)
         
         # 构建描述文本
-        defense_info = ""
-        if context.defense_skill:
-            defense_info = f" [你使用了{context.defense_skill.name}]"
-            desc = f"{result_text}{defense_info} (你受到{context.player_damage}点伤害，对方受到{context.pc_damage}点伤害)"
-        
+        defense_info = f" [你使用了{context.defense_skill.name}]" if context.defense_skill else ""
+        desc = f"{result_text}{defense_info} (你受{context.player_damage}伤，对手受{context.pc_damage}伤)"
+
         # # 调试日志
         # print("\n[优先级执行日志]", " → ".join(context.result_log))
         
         return CombatData(context.player_damage, context.pc_damage, desc)
 
     def execute_turn(self, player_input: str, defense_skill_name: str | None) -> CombatData:   # 执行一个战斗回合
-        
+        # 防御性检测，防御技能只能通过 defense_skill_name 传入
+        if player_input and defense_skill_name:
+            self.logger.warning("同时指定攻击和防御，忽略攻击")
+            player_input = None
+
         defense_skill = None
         if defense_skill_name:
             skill = self.skill.get_skill(defense_skill_name)
@@ -265,7 +266,9 @@ class Combat:  # 战斗系统
             self._phase_player_action(context)  # 玩家行动阶段
             self._phase_pc_action(context)      # 对手行动阶段
             self._phase_resolve(context)        # 结算阶段
-            
+            if context.combat_data is None:
+                self.logger.error("combat_data 未被设置，返回默认值")
+                return CombatData(0, 0, "【错误】战斗数据未生成")
             return context.combat_data or CombatData(0, 0, "回合结束")
             
         except Exception as e:

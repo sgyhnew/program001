@@ -108,7 +108,7 @@ class Game:
                     # 检查能量是否足够
                     if self.attribute.mp_get(True) >= cost:
                         self.attribute.mp_do(True, -cost)
-                        self.attribute.defense_level = defense_level
+                        self.fight("", defense_skill_name=defense_skill_name)
                         self.fight("")  # 防御回合
                     else:
                         say(f"能量不足{cost}点，无法进行防御！")

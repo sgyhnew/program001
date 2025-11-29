@@ -79,3 +79,27 @@
 2025-11-30 03:37:02,872 - INFO - [info] 玩家使用技能: 基础防御
 2025-11-30 03:37:02,872 - INFO - [gamerun] PC行动阶段
 2025-11-30 03:37:02,872 - INFO - [gamerun] PC行动阶段
+2025-11-30 04:12:57,781 - INFO - [info] 战斗系统初始化完成
+2025-11-30 04:12:57,781 - INFO - [info] 战斗系统初始化完成
+2025-11-30 04:13:03,315 - INFO - [info] 战斗系统初始化完成
+2025-11-30 04:13:03,315 - INFO - [info] 战斗系统初始化完成
+2025-11-30 04:13:09,619 - INFO - [info] main中fight,玩家选择: 基础拳
+2025-11-30 04:13:09,619 - INFO - [info] main中fight,玩家选择: 基础拳
+2025-11-30 04:13:09,620 - INFO - [gamerun] 第1回合准备阶段
+2025-11-30 04:13:09,620 - INFO - [gamerun] 第1回合准备阶段
+2025-11-30 04:13:10,622 - INFO - [gamerun] 玩家MP +GameResult.ROUND, PC MP +GameResult.ROUND
+2025-11-30 04:13:10,622 - INFO - [gamerun] 玩家MP +GameResult.ROUND, PC MP +GameResult.ROUND
+2025-11-30 04:13:11,724 - INFO - [info] 玩家使用技能: 基础拳
+2025-11-30 04:13:11,724 - INFO - [info] 玩家使用技能: 基础拳
+2025-11-30 04:13:11,724 - INFO - [gamerun] PC行动阶段
+2025-11-30 04:13:11,724 - INFO - [gamerun] PC行动阶段
+2025-11-30 04:13:45,114 - INFO - [info] main中fight,玩家选择: 进阶防御
+2025-11-30 04:13:45,114 - INFO - [info] main中fight,玩家选择: 进阶防御
+2025-11-30 04:13:45,115 - INFO - [gamerun] 第2回合准备阶段
+2025-11-30 04:13:45,115 - INFO - [gamerun] 第2回合准备阶段
+2025-11-30 04:13:46,116 - INFO - [gamerun] 玩家MP +GameResult.ROUND, PC MP +GameResult.ROUND
+2025-11-30 04:13:46,116 - INFO - [gamerun] 玩家MP +GameResult.ROUND, PC MP +GameResult.ROUND
+2025-11-30 04:13:47,218 - INFO - [info] 玩家使用技能: 进阶防御
+2025-11-30 04:13:47,218 - INFO - [info] 玩家使用技能: 进阶防御
+2025-11-30 04:13:47,218 - INFO - [gamerun] PC行动阶段
+2025-11-30 04:13:47,218 - INFO - [gamerun] PC行动阶段
