@@ -1,4 +1,5 @@
 from enum import Enum,auto
+import enum
 
 class GameResult(Enum):     # 游戏结果名词
     ROUND = "round_start"          # 每回合开始
@@ -22,10 +23,12 @@ class MenuAction(Enum):     # 行动菜单
     DEFENSE = auto()
     TOOL    = auto() 
 
-
 class SkillLevel(Enum):     # 技能等级
     LV1 = "lv1"
     LV2 = "lv2"
+# class CharactersStatus(Enum):   # 角色buff和debuff
+    
+
 
 class PriorityLevel(Enum):  # 优先级
     P0 = 0  # 最高,不轻易启用

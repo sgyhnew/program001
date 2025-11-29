@@ -1,13 +1,12 @@
 from __future__ import annotations
-from multiprocessing import set_forkserver_preload
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from FG.main import Game
+from multiprocessing import set_forkserver_preload
+import sys
+from pathlib import Path
 from FG.constants import *
 from FG.constants import GameResult as GR
-from system.logger import Gamelogger
 from func import say, load_json
 
 class MpConfig: #   mp管理规则
@@ -21,14 +20,12 @@ class MpConfig: #   mp管理规则
 class Attribute:    # 内部类属性系统，负责战斗中状态展示
     def __init__(self,game:Game):
         self.game = game
-        self.logger = Gamelogger()
         self.hp1 = 100  # player
         self.hp2 = 100  # pc
         self.hp1_top = 100  # 玩家血量上限
         self.hp2_top = 100  # 对手血量上限
         self._mp_player = 20  # 玩家能量 
         self._mp_pc = 0       # PC能量（FG2.0时移除）
-        self.defense_level = None # 防御等级
         self.mp_player_top = 100    # 能量上限
         self.mp_pc_top = 50         # PC能量上限较低，为移除做铺垫
 

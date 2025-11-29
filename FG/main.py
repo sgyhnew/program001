@@ -3,123 +3,36 @@ import sys
 from pathlib import Path
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
-from abc import ABC
+
 from functools import lru_cache
 from typing import Dict, Any, Callable, Iterator, Tuple
 from dataclasses import dataclass
 from system.attribute import Attribute
 from system.menu import Menu
-from system.combat import Combat
+from system.combat import Combat, CombatData
 from system.logger import Gamelogger
+from system.skill import SkillManager
+from system.logger import logging
 from constants import *
 from constants import PriorityLevel as PL
 from func import say, load_json
 
-@dataclass
-class SkillData(ABC):    # 通用技能属性
-    name: str           # 技能名
-    category: str       # 行动类别
-    level: str          # 等级 
-
-    cost: int = 0                            # 消耗
-    cooldown: int =0                         # 冷却
-    priority_level: PL = PL.P2               # 优先位阶
-    priority: int=3                          # 优先级
-    effect: str | Callable = '此招式没有效果' # 效果
-    
-    @classmethod
-    def _base_data(cls, data: Dict[str,Any]) -> Dict[str,Any]:    # 可复用，公开的
-        # 处理优先位阶转换
-        priority_level_str = data.get('priority_level', 'P2')
-        try:
-            priority_level = PL[priority_level_str]
-        except KeyError:
-            priority_level = PL.P2
-        return {    # 创建字典，传递时不传对象，方便cls继承
-            'name': data['name'],
-            'category': data['category'],
-            'level': data['level'],
-            'cost': data.get('cost', 0),
-            'priority_level': priority_level,
-            'priority': data.get('priority', 2),
-            'effect': data.get('effect', ''),
-            'cooldown': data.get('cooldown', 0)
-        }
-    @classmethod
-    def from_dict(cls, data: Dict[str,Any]) -> 'SkillData':   # 父类的基础字典
-        base_data = cls._base_data(data)    
-        return cls(**base_data)  # 返回解包对象
-@dataclass
-class AttackSkill(SkillData):   # 攻击技能
-    damage: int = 0      # 伤害
-    type:   str ='其他'  # 类型
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AttackSkill':
-        base_data = cls._base_data(data)
-        return cls(
-            **base_data,
-            damage = data.get('damage',0),
-            type = data.get('type','其他')
-        )
-@dataclass
-class DefenseSkill(SkillData):  # 防御技能
-    defense_round: int = 1    # 生效回合数
-    damage_reduction: int = 0 # 伤害减免
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DefenseSkill':
-        base_data = cls._base_data(data)
-        return cls(
-            **base_data,
-            defense_round = data.get('defense_round',1)
-        )
-
 class Game:
     __slots__ = (
-        'menu','attribute','combat','logger',  # 外部类的调用
+        'menu','attribute','combat','logger','skill',  # 外部类的调用
         'count','beats',              # 战斗相关变量
         'skill','action',             # 动作,为日后其他版本迭代做准备
-        '_skill_cache'                # 技能缓存，便于使用和查询
     )   
     def __init__(self): # 变量的声明和方法的使用
         self.attribute = Attribute(self)
         self.menu = Menu(self)
         self.combat = Combat(self)
         self.logger = Gamelogger(log_dir='logs')
-        self.skill = load_json('data/skill.json')
+        self.skill = SkillManager()
         self.beats = BEATS_MAP
         self.count = 0
-        self._skill_cache: Dict[str, SkillData]= {}  #{name: SkillData}
 
         self.logger.info("战斗系统初始化完成")  # 初始化
-        self._build_skill()   # 构建skill数据缓存
-
-    def _traverse_skill(self) -> Iterator[Tuple[str, str, str, Dict[str, Any]]]:   # 生成器迭代遍历
-        """生成器：遍历技能树，产出(类别, 等级, 技能名, 数据字典)"""
-        for category, levels in self.skill.items():
-            for level, skills in levels.items():
-                for name, data in skills.items():
-                    yield category, level, name, data
-    def _build_skill(self) -> None:                                                # 使用遍历结果构建技能缓存
-        self._skill_cache.clear()
-        SKILL_MAP = {
-            'attack' : AttackSkill,
-            'defense': DefenseSkill
-        }
-        for category, level, name, data in self._traverse_skill():
-            skill_category = SKILL_MAP.get(category,SkillData)
-            skills = {
-                **data,
-                'name'     : name,
-                'category' : category,
-                'level'    : level
-            }
-            self._skill_cache[name] = skill_category.from_dict(skills)
-
-    @lru_cache(maxsize=64)  # 缓存查询结果，提升性能
-    def get_skill(self, skill_name: str) -> SkillData:      # 查询技能元数据
-        if skill_name not in self._skill_cache:
-            raise KeyError(f"技能 '{skill_name}' 未定义，请检查 skill.json")
-        return self._skill_cache[skill_name]
 
     def is_alive(self, is_player):  # 胜负判定 同时为0判玩家为失败
         return self.attribute.hp1 > 0 if is_player else self.attribute.hp2 > 0
@@ -127,7 +40,7 @@ class Game:
     def fight(self, player_skill: str): # 回合制战斗
   
         """Game类只负责调用战斗系统和处理结果"""
-        result = self.combat.execute_turn(player_skill, self.attribute.defense_level)
+        result: CombatData= self.combat.execute_turn(player_skill,None) # 默认防御为None
         
         # 根据结果触发额外逻辑
         if result.damage_to_player > 20:    # 重伤提示
@@ -153,10 +66,6 @@ class Game:
             self.count +=1
             print(f"第{self.count}回合")
 
-            # 准备阶段
-            self.attribute.defense_level = None # 重置防御等级
-
-
             if self.attribute.hp2 > 50:
                 say("对方覆手而立，侧视而笑：'阁下出招吧，拳、剑、刀皆可，若有疑惑我自可欣然解答。若是不愿再战，逃走即可！'\n")
             else:
@@ -175,7 +84,7 @@ class Game:
                 # 攻击技能选择
                 skill_name = menu_result
                 try:
-                    skill_data = self.get_skill(skill_name)
+                    skill_data = self.skill.get_skill(skill_name)
                     cost = skill_data.cost
                     
                     # 检查能量是否足够
@@ -193,7 +102,7 @@ class Game:
                 try:
                     # 根据防御等级获取对应的防御技能
                     defense_skill_name = "进阶防御" if defense_level >= 2 else "基础防御"
-                    skill_data = self.get_skill(defense_skill_name)
+                    skill_data = self.skill.get_skill(defense_skill_name)
                     cost = skill_data.cost
                     
                     # 检查能量是否足够

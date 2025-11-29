@@ -1,5 +1,7 @@
 
 from __future__ import annotations
+
+from ctypes.wintypes import SMALL_RECT
 from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from FG.main import Game
@@ -123,7 +125,7 @@ class Menu:       # 菜单系统，负责所有用户交互
         key_index = ord('a')  # 初始值 = 97 98→'b'
 
         # 遍历技能缓存，筛选出对应类别的技能
-        for skill_data in self.game._skill_cache.values():
+        for skill_data in self.game.skill._skill_cache.values():
             
             if skill_data.category != category or skill_data.level != level:
                 continue
@@ -140,7 +142,7 @@ class Menu:       # 菜单系统，负责所有用户交互
     def _get_available_levels(  # 获取指定类别的level
             self, category: str) -> List[str]:    
         levels = set()  # 集合
-        for skill_data in self.game._skill_cache.values():
+        for skill_data in self.game.skill._skill_cache.values():
             if skill_data.category == category:
                 levels.add(skill_data.level)
         levels = sorted(levels) # 转化为有序列表
@@ -202,7 +204,7 @@ class Menu:       # 菜单系统，负责所有用户交互
                 # 增强对技能的渲染
                 if hasattr(self.game, 'get_skill'):
                     try:
-                        skill_data = self.game.get_skill(name)
+                        skill_data = self.game.skill.get_skill(name)
                         # 显示伤害、冷却等信息
                         damage_info = f"伤害:{skill_data.damage}" if skill_data.damage > 0 else ""
                         cooldown_info = f"冷却:{skill_data.cooldown}" if skill_data.cooldown > 0 else ""
@@ -383,7 +385,7 @@ class Menu:       # 菜单系统，负责所有用户交互
             options = {}
             for i,level in enumerate(levels):
                 key = chr(ord('a')+i)
-                count = sum(1 for s in menu.game._skill_cache.values() if s.category == category and s.level == level)
+                count = sum(1 for s in menu.game.skill._skill_cache.values() if s.category == category and s.level == level)
                 options[key] = (f"{level}级技能 ({count}种)", True, 0)
             options['z'] = ('返回',True,0)
             return options
